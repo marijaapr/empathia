@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Empathia Chat</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Auth Check -->
+    <script>
+        function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/login';
+            }
+        }
+        checkAuth();
+    </script>
+
+    <div id="app">
+        <!-- Header with Logout -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🌟 Empathia</h1>
+                <div class="user-menu">
+                    <span id="userEmail"></span>
+                    <button onclick="logout()" class="logout-btn">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Left Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Settings</h2>
+                </div>
+
+                <div class="settings-group">
+                    <label>Language</label>
+                    <select id="language-select" onchange="updateLanguage()">
+                        <option value="en">English</option>
+                        <option value="mk">Македонски</option>
+                    </select>
+                </div>
+
+                <div class="settings-group">
+                    <label>Persona</label>
+                    <select id="persona-select">
+                        <option value="supportive_friend">Supportive Friend</option>
+                        <option value="wise_counselor">Wise Counselor</option>
+                        <option value="compassionate_mentor">Compassionate Mentor</option>
+                    </select>
+                </div>
+
+                <button onclick="loadChatHistory()" class="btn-secondary">View Chat History</button>
+                <button onclick="loadMoodHistory()" class="btn-secondary">Mood History</button>
+
+                <div class="sidebar-footer">
+                    <p><small>Empathia v1.0</small></p>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <section class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message assistant">
+                        <p>Hello! I'm Empathia, your emotional support companion. How are you feeling today?</p>
+                    </div>
+                </div>
+
+                <div class="mood-tracker">
+                    <label>How are you feeling?</label>
+                    <div class="mood-buttons">
+                        <button onclick="logMood('happy')" class="mood-btn mood-happy">😊 Happy</button>
+                        <button onclick="logMood('sad')" class="mood-btn mood-sad">😢 Sad</button>
+                        <button onclick="logMood('anxious')" class="mood-btn mood-anxious">😰 Anxious</button>
+                        <button onclick="logMood('angry')" class="mood-btn mood-angry">😠 Angry</button>
+                        <button onclick="logMood('calm')" class="mood-btn mood-calm">😌 Calm</button>
+                    </div>
+                </div>
+
+                <form class="chat-form" onsubmit="sendMessage(event)">
+                    <input type="text" id="messageInput" placeholder="Type your message..." required>
+                    <button type="submit" class="btn-send">Send</button>
+                </form>
+
+                <!-- Stats -->
+                <div class="stats-container">
+                    <div id="weeklyStats"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script>
+        // Display logged-in user
+        document.getElementById('userEmail').textContent = localStorage.getItem('userEmail') || 'User';
+
+        function logout() {
+            const token = localStorage.getItem('access_token');
+            
+            fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }).then(() => {
+                localStorage.clear();
+                window.location.href = '/login';
+            });
+        }
+
+        function updateLanguage() {
+            const language = document.getElementById('language-select').value;
+            localStorage.setItem('language', language);
+        }
+    </script>
+</body>
+</html>

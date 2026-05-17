@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Empathia - Emotional Support Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Empathia</h1>
+            <p class="subtitle">Your Personal Emotional Support Assistant</p>
+        </header>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel">
+            <div class="setting-group">
+                <label for="language-select">Language:</label>
+                <select id="language-select">
+                    <option value="en">English</option>
+                    <option value="mk">Македонски</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="persona-select">Persona:</label>
+                <select id="persona-select">
+                    <option value="supportive_friend">Supportive Friend</option>
+                    <option value="reflective_coach">Reflective Coach</option>
+                    <option value="neutral_assistant">Neutral Assistant</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <div id="messages" class="messages"></div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="message-input" 
+                    placeholder="Share your thoughts or feelings..."
+                    autocomplete="off"
+                >
+                <button id="send-button" class="send-button">Send</button>
+            </div>
+            <div class="quick-actions">
+                <button class="quick-action-btn" data-mood="happy">😊 Happy</button>
+                <button class="quick-action-btn" data-mood="sad">😢 Sad</button>
+                <button class="quick-action-btn" data-mood="anxious">😰 Anxious</button>
+                <button class="quick-action-btn" data-mood="angry">😠 Angry</button>
+                <button class="quick-action-btn" data-mood="calm">😌 Calm</button>
+            </div>
+        </div>
+
+        <!-- Stats Panel -->
+        <div class="stats-panel">
+            <div class="stats-header">
+                <h3>Mood Insights</h3>
+                <button id="refresh-stats" class="refresh-btn">↻</button>
+            </div>
+            <div id="mood-history" class="mood-history"></div>
+            <div id="weekly-summary" class="weekly-summary"></div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
