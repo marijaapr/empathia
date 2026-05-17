@@ -274,10 +274,11 @@
                     throw new Error(data.error || 'Login failed');
                 }
 
-                // Store tokens
+                // Store tokens and user info
                 localStorage.setItem('access_token', data.access_token);
                 localStorage.setItem('refresh_token', data.refresh_token);
                 localStorage.setItem('user_id', data.user_id);
+                localStorage.setItem('email', data.email);
 
                 // Redirect to chat
                 window.location.href = '/chat';

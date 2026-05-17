@@ -34,6 +34,17 @@
             <!-- Left Sidebar -->
             <aside class="sidebar">
                 <div class="sidebar-header">
+                    <h2>Chats</h2>
+                    <button onclick="createNewChat()" class="btn-new-chat">+ New</button>
+                </div>
+
+                <div class="chat-sessions-list" id="chatSessionsList">
+                    <p>Loading chats...</p>
+                </div>
+
+                <hr class="sidebar-divider">
+
+                <div class="sidebar-header">
                     <h2>Settings</h2>
                 </div>
 
@@ -49,8 +60,8 @@
                     <label>Persona</label>
                     <select id="persona-select">
                         <option value="supportive_friend">Supportive Friend</option>
-                        <option value="wise_counselor">Wise Counselor</option>
-                        <option value="compassionate_mentor">Compassionate Mentor</option>
+                        <option value="reflective_coach">Reflective Coach</option>
+                        <option value="neutral_assistant">Neutral Assistant</option>
                     </select>
                 </div>
 
@@ -97,7 +108,7 @@
     <script src="/static/script.js"></script>
     <script>
         // Display logged-in user
-        document.getElementById('userEmail').textContent = localStorage.getItem('userEmail') || 'User';
+        document.getElementById('userEmail').textContent = localStorage.getItem('email') || 'User';
 
         function logout() {
             const token = localStorage.getItem('access_token');

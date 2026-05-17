@@ -1,7 +1,5 @@
 Flask==2.3.3
 python-dotenv==1.0.0
 openai==0.28.0
-supabase==2.0.0
-python-jwt==1.7.1
-postgrest-py==0.10.11
-realtime-py==1.0.0
+supabase==2.30.0
+PyJWT==2.12.1
