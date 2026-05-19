@@ -206,3 +206,16 @@ class SupabaseDB:
         except Exception as e:
             print(f"Error in delete_chat_session: {e}")
             return False
+
+    @staticmethod
+    def get_user_role(user_id: str) -> str:
+        """Get user role by checking if they have a psychologist profile"""
+        try:
+            # Check if user has a psychologist profile
+            response = supabase.table("psychologist_profiles").select("id").eq("user_id", user_id).execute()
+            if response.data and len(response.data) > 0:
+                return "psychologist"
+            return "user"
+        except Exception as e:
+            print(f"Error in get_user_role: {e}")
+            return "user"
