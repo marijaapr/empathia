@@ -228,6 +228,13 @@ async function sendMessage(event) {
     // If no session exists, create one first
     if (!state.currentSessionId) {
         await createDefaultSession();
+        
+        // Check again if session was created
+        if (!state.currentSessionId) {
+            console.error('Failed to create session');
+            alert('Unable to create chat session. Please refresh the page.');
+            return;
+        }
     }
 
     // Disable input
@@ -592,10 +599,10 @@ function createNewChat() {
                 // Load sessions but don't auto-select (skip redirect to first chat)
                 loadChatSessions(true);
                 
-                // Start the message refresh for the new session
+                // Start the message refresh for the new session (2 seconds for faster updates)
                 state.messageRefreshInterval = setInterval(() => {
                     loadSessionMessages(data.session.id, true);
-                }, 3000);
+                }, 2000);
                 
                 // Focus on input
                 elements.messageInput?.focus();
@@ -633,13 +640,23 @@ function loadSessionMessages(sessionId, silent = false) {
                     data.messages.forEach(msg => {
                         let role = msg.role;
                         let content = msg.content;
+                        let formattedContent;
                         
+                        // Handle different message roles
                         if (role === 'psychologist') {
                             role = 'assistant';
-                            content = `${psychologistName}: ${content}`;
+                            // Format: <strong>Name:</strong> message (with HTML allowed)
+                            formattedContent = `<strong>${psychologistName}:</strong> ${formatMessageHtml(content)}`;
+                        } else if (role === 'system') {
+                            // System messages like "Psychologist joined"
+                            role = 'system';
+                            formattedContent = formatMessageHtml(content);
+                        } else {
+                            // Regular messages (user, assistant)
+                            formattedContent = formatMessageHtml(content);
                         }
                         
-                        newHTML += `<div class="message ${role}"><div class="message-content message-body">${formatMessageHtml(content)}</div></div>`;
+                        newHTML += `<div class="message ${role}"><div class="message-content message-body">${formattedContent}</div></div>`;
                     });
                 } else {
                     newHTML = '<div class="message assistant"><div class="message-content message-body"><p class="message-paragraph">No messages in this chat yet. Start a conversation!</p></div></div>';
@@ -713,11 +730,11 @@ function loadSession(sessionId) {
     // Load messages initially
     loadSessionMessages(sessionId);
 
-    // Set up auto-refresh every 3 seconds for live updates
+    // Set up auto-refresh every 2 seconds for live updates (faster for real-time feel)
     state.messageRefreshInterval = setInterval(() => {
         loadSessionMessages(sessionId, true);
         checkPsychologistStatus(); // Also check for psychologist status updates
-    }, 3000);
+    }, 2000);
 }
 
 function deleteSession(sessionId) {

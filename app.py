@@ -583,6 +583,10 @@ def send_session_message(session_id):
     }
     """
     try:
+        # Validate session_id
+        if not session_id or session_id == 'null' or session_id == 'undefined':
+            return jsonify({'error': 'Invalid session ID. Please refresh the page.'}), 400
+            
         data = request.json
         user_message = data.get('message', '').strip()
         language = validate_language(data.get('language', 'en'))
