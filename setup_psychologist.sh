@@ -14,7 +14,6 @@ files=(
     "services/emotion_analyzer.py"
     "routes/psychologist_routes.py"
     "database/psychologist_migration.sql"
-    "templates/psychologist/register.html"
     "templates/psychologist/dashboard.html"
 )
 

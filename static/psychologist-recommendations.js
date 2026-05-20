@@ -26,7 +26,7 @@ class PsychologistRecommendations {
         if (urgency !== 'high') return;
 
         try {
-            const response = await fetch('/api/psychologist/recommended');
+            const response = await apiFetch('/api/psychologist/recommended');
             const psychologists = await response.json();
 
             if (!psychologists || psychologists.length === 0) {
@@ -198,24 +198,10 @@ class PsychologistRecommendations {
                 requestBody.user_id = userId;
             }
 
-            // Prepare headers
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-            
-            // Include Authorization header if token available
-            if (accessToken) {
-                headers['Authorization'] = `Bearer ${accessToken}`;
-                console.log('📤 Sending with Authorization header');
-            } else {
-                console.log('⚠️ No authorization token - using development mode');
-            }
-
             console.log('📤 POST /api/psychologist/request', requestBody);
 
-            const response = await fetch('/api/psychologist/request', {
+            const response = await apiFetch('/api/psychologist/request', {
                 method: 'POST',
-                headers: headers,
                 body: JSON.stringify(requestBody)
             });
 
