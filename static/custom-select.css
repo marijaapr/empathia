@@ -1,0 +1,160 @@
+/**
+ * Shared custom dropdown (replaces native select list styling)
+ */
+:root {
+    --cs-primary: #7c6cf2;
+    --cs-primary-dark: #6858e8;
+    --cs-text: #1f1f2e;
+    --cs-muted: #7b7b93;
+}
+
+.custom-select {
+    position: relative;
+    width: 100%;
+}
+
+.custom-select-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.custom-select-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1.5px solid rgba(124, 108, 242, 0.18);
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 14px;
+    padding: 12px 14px 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--cs-text);
+    font-family: inherit;
+    min-height: 48px;
+    cursor: pointer;
+    transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+    text-align: left;
+}
+
+.custom-select-trigger:hover {
+    border-color: rgba(124, 108, 242, 0.35);
+    background: #fff;
+}
+
+.custom-select.is-open .custom-select-trigger,
+.custom-select-trigger:focus {
+    outline: none;
+    border-color: var(--cs-primary);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(124, 108, 242, 0.14);
+}
+
+.custom-select-chevron {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 8px;
+    background-color: rgba(124, 108, 242, 0.1);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%237c6cf2' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 10px 6px;
+    transition: transform 0.25s ease, background-color 0.25s ease;
+}
+
+.custom-select.is-open .custom-select-chevron {
+    transform: rotate(180deg);
+    background-color: rgba(124, 108, 242, 0.18);
+}
+
+.custom-select-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    background: #fff;
+    border: 1.5px solid rgba(124, 108, 242, 0.15);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(124, 108, 242, 0.18);
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.custom-select-menu[hidden] {
+    display: none;
+}
+
+.custom-select-option {
+    padding: 12px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.custom-select-option:hover,
+.custom-select-option:focus {
+    outline: none;
+    background: rgba(124, 108, 242, 0.08);
+}
+
+.custom-select-option.is-selected {
+    background: linear-gradient(135deg, rgba(124, 108, 242, 0.14), rgba(165, 139, 255, 0.12));
+    border-color: rgba(124, 108, 242, 0.2);
+}
+
+.custom-select-option .option-title {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--cs-text);
+    margin-bottom: 2px;
+}
+
+.custom-select-option .option-desc {
+    display: block;
+    font-size: 12px;
+    color: var(--cs-muted);
+    line-height: 1.4;
+}
+
+.custom-select-option.is-selected .option-title {
+    color: var(--cs-primary-dark);
+}
+
+/* Compact variant for chat settings panel */
+.custom-select--compact .custom-select-trigger {
+    min-height: 40px;
+    padding: 8px 12px 8px 14px;
+    font-size: 12px;
+    border-radius: 10px;
+}
+
+.custom-select--compact .custom-select-menu {
+    border-radius: 10px;
+}
+
+.custom-select--compact .custom-select-option {
+    padding: 10px 12px;
+}
+
+.custom-select--compact .custom-select-option .option-title {
+    font-size: 12px;
+}
+
+.custom-select--compact .custom-select-option .option-desc {
+    font-size: 11px;
+}

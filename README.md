@@ -95,6 +95,7 @@ empathia/
 │   └── supabase_db.py          # Supabase database operations
 ├── services/
 │   ├── auth_service.py         # Supabase authentication & JWT
+│   ├── request_auth.py         # JWT verification helpers
 │   ├── openai_service.py       # ChatGPT integration
 │   ├── emotion_service.py      # Emotion detection
 │   ├── reflection_service.py   # Reflection prompts
@@ -123,7 +124,6 @@ empathia/
 ### Chat
 - `POST /api/chat-sessions/<id>/chat` - Send message in a session
 - `GET /api/chat-sessions` - List user chat sessions
-- `GET /api/chat-history` - Legacy global message history
 
 ### Mood (Protected - requires auth token)
 - `POST /api/mood` - Log mood entry
