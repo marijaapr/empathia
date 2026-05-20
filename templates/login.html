@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Empathia - Login</title>
+    <link rel="stylesheet" href="/static/custom-select.css" />
 
     <style>
         * {
@@ -26,14 +27,15 @@
             --shadow: 0 10px 40px rgba(124, 108, 242, 0.12);
         }
 
-        html,
-        body {
-            width: 100%;
+        html {
             height: 100%;
-            overflow: hidden;
         }
 
         body {
+            min-height: 100vh;
+            width: 100%;
+            overflow-x: hidden;
+            overflow-y: auto;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: linear-gradient(135deg, #f7f5ff 0%, #f2f0ff 100%);
             display: flex;
@@ -41,6 +43,7 @@
             justify-content: center;
             position: relative;
             color: var(--text);
+            padding: 24px 16px;
         }
 
         body::before {
@@ -68,9 +71,11 @@
         .login-container {
             width: 100%;
             max-width: 470px;
-            padding: 24px;
+            padding: 0;
+            margin: auto;
             position: relative;
             z-index: 2;
+            flex-shrink: 0;
         }
 
         .form-card {
@@ -78,10 +83,10 @@
             backdrop-filter: blur(25px);
             border: 1px solid var(--border);
             border-radius: 28px;
-            padding: 42px;
+            padding: 32px 36px;
             box-shadow: var(--shadow);
             position: relative;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .form-card::before {
@@ -102,7 +107,7 @@
 
         .auth-header {
             text-align: center;
-            margin-bottom: 34px;
+            margin-bottom: 24px;
         }
 
         .logo {
@@ -158,7 +163,11 @@
         }
 
         .form-group {
-            margin-bottom: 18px;
+            margin-bottom: 14px;
+        }
+
+        .required-star {
+            color: var(--danger);
         }
 
         label {
@@ -172,26 +181,25 @@
         }
 
         input,
-        select,
         textarea {
             width: 100%;
             border: 1.5px solid rgba(124, 108, 242, 0.12);
             background: rgba(255, 255, 255, 0.82);
             border-radius: 14px;
-            padding: 14px 16px;
+            padding: 12px 16px;
             font-size: 14px;
             color: var(--text);
             transition: all 0.25s ease;
             font-family: inherit;
+            min-height: 46px;
         }
 
         textarea {
             resize: vertical;
-            min-height: 90px;
+            min-height: 80px;
         }
 
         input:focus,
-        select:focus,
         textarea:focus {
             outline: none;
             border-color: var(--primary);
@@ -258,18 +266,60 @@
         }
 
         #psychologistFields {
-            margin-top: 12px;
-            padding-top: 8px;
+            margin-top: 8px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(124, 108, 242, 0.12);
+        }
+
+        .student-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .student-note {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            min-height: auto;
+            margin-top: 3px;
+            flex-shrink: 0;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+
+        .login-container.signup-active {
+            max-width: 500px;
         }
 
         @media (max-width: 640px) {
             body {
-                overflow-y: auto;
-                padding: 20px 0;
-            }
-
-            .login-container {
-                padding: 18px;
+                padding: 16px 12px;
             }
 
             .form-card {
@@ -282,8 +332,9 @@
             }
 
             input,
-            select,
             textarea,
+            .custom-select-trigger,
+            .custom-select-option .option-title,
             button[type="submit"] {
                 font-size: 16px;
             }
@@ -300,7 +351,7 @@
             <div class="auth-header">
                 <div class="logo">Empathia</div>
                 <p class="header-subtitle">
-                    AI Emotional Support Platform
+                    Support for students—by students and AI
                 </p>
             </div>
 
@@ -350,98 +401,130 @@
             <form id="signupForm" class="tab-content" onsubmit="handleSignup(event)">
 
                 <div class="form-group">
-                    <label for="signup-role">Account Type</label>
-
-                    <select id="signup-role" required>
-                        <option value="user">Regular User</option>
-                        <option value="psychologist">Psychologist</option>
-                    </select>
+                    <label for="signup-role-trigger">Account Type <span class="required-star">*</span></label>
+                    <div class="custom-select" id="signupRoleCustom">
+                        <button
+                            type="button"
+                            class="custom-select-trigger"
+                            id="signup-role-trigger"
+                            aria-haspopup="listbox"
+                            aria-expanded="false"
+                            aria-controls="signup-role-menu"
+                        >
+                            <span class="custom-select-label" id="signup-role-display">Regular User</span>
+                            <span class="custom-select-chevron" aria-hidden="true"></span>
+                        </button>
+                        <ul class="custom-select-menu" id="signup-role-menu" role="listbox" hidden>
+                            <li
+                                role="option"
+                                class="custom-select-option is-selected"
+                                data-value="user"
+                                tabindex="0"
+                                aria-selected="true"
+                            >
+                                <span class="option-title">Regular User</span>
+                                <span class="option-desc">Seek emotional support and AI reflection</span>
+                            </li>
+                            <li
+                                role="option"
+                                class="custom-select-option"
+                                data-value="psychologist"
+                                tabindex="0"
+                                aria-selected="false"
+                            >
+                                <span class="option-title">Psychology Student</span>
+                                <span class="option-desc">Offer supervised practice sessions</span>
+                            </li>
+                        </ul>
+                        <select id="signup-role" class="custom-select-native" required tabindex="-1" aria-hidden="true">
+                            <option value="user" selected>Regular User</option>
+                            <option value="psychologist">Psychology Student</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="signup-email">Email</label>
-
-                    <input
-                        type="email"
-                        id="signup-email"
-                        required
-                        placeholder="your@email.com"
-                    />
-                </div>
-
-                <div class="form-group">
-                    <label for="signup-username">Full Name</label>
-
+                    <label for="signup-username">Full Name <span class="required-star">*</span></label>
                     <input
                         type="text"
                         id="signup-username"
+                        required
+                        minlength="2"
+                        autocomplete="name"
                         placeholder="Your full name"
                     />
                 </div>
 
                 <div class="form-group">
-                    <label for="signup-password">Password</label>
-
+                    <label for="signup-email">Email <span class="required-star">*</span></label>
                     <input
-                        type="password"
-                        id="signup-password"
+                        type="email"
+                        id="signup-email"
                         required
-                        placeholder="Create a secure password"
+                        autocomplete="email"
+                        placeholder="your@email.com"
                     />
                 </div>
 
                 <div class="form-group">
-                    <label for="signup-password-confirm">Confirm Password</label>
+                    <label for="signup-password">Password <span class="required-star">*</span></label>
+                    <input
+                        type="password"
+                        id="signup-password"
+                        required
+                        minlength="6"
+                        autocomplete="new-password"
+                        placeholder="At least 6 characters"
+                    />
+                </div>
 
+                <div class="form-group">
+                    <label for="signup-password-confirm">Confirm Password <span class="required-star">*</span></label>
                     <input
                         type="password"
                         id="signup-password-confirm"
                         required
+                        minlength="6"
+                        autocomplete="new-password"
                         placeholder="Repeat password"
                     />
                 </div>
 
-                <!-- Psychologist Fields -->
+                <!-- Psychology student fields -->
                 <div id="psychologistFields" style="display:none;">
-
-                    <div class="form-group">
-                        <label for="signup-license">
-                            License Number <span style="color: var(--danger);">*</span>
-                        </label>
-
-                        <input
-                            type="text"
-                            id="signup-license"
-                            placeholder="Professional license number"
-                            data-psychologist-required="true"
-                        />
-                    </div>
+                    <p class="student-section-title">Student practitioner details</p>
+                    <p class="student-note">
+                        You are registering as a trainee in psychology, not a licensed clinician.
+                    </p>
 
                     <div class="form-group">
                         <label for="signup-bio">
-                            Professional Bio <span style="color: var(--danger);">*</span>
+                            About You <span class="required-star">*</span>
                         </label>
-
                         <textarea
                             id="signup-bio"
-                            placeholder="Describe your experience and expertise"
-                            data-psychologist-required="true"
+                            placeholder="Your program, interests, and what you hope to practice"
                         ></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="signup-specializations">
-                            Specializations <span style="color: var(--danger);">*</span>
+                            Areas of Interest <span class="required-star">*</span>
                         </label>
-
                         <input
                             type="text"
                             id="signup-specializations"
-                            placeholder="e.g., Anxiety, Depression, Trauma (comma-separated)"
-                            data-psychologist-required="true"
+                            placeholder="e.g., Anxiety, Stress, Mood (comma-separated)"
                         />
                     </div>
 
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="signup-supervision" />
+                        <label for="signup-supervision">
+                            I understand I may only offer support as a supervised psychology student, not as a licensed professional.
+                            <span class="required-star">*</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="error" id="signupError"></div>
@@ -458,6 +541,7 @@
 </div>
 
 <script src="/static/api.js"></script>
+<script src="/static/custom-select.js"></script>
 <script src="/static/login.js"></script>
 
 </body>

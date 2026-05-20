@@ -88,28 +88,39 @@ body::before {
     gap: 24px;
 }
 
-.user-email {
-    font-size: 13px;
-    color: #64748b;
-    font-weight: 500;
+.user-display-name {
+    font-size: 14px;
+    color: #3f3f46;
+    font-weight: 600;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.logout-btn {
-    background: transparent;
-    color: #64748b;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    padding: 8px 18px;
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 22px;
     border-radius: 6px;
-    font-weight: 600;
-    font-size: 13px;
+    font-weight: 700;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-block;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.25);
 }
 
-.logout-btn:hover {
-    background: rgba(255, 255, 255, 0.5);
-    border-color: rgba(102, 126, 234, 0.5);
-    color: #667eea;
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+}
+
+.navbar .btn-logout {
+    padding: 9px 20px;
+    font-size: 13px;
 }
 
 /* ========== MAIN LAYOUT ========== */
@@ -324,26 +335,27 @@ body::before {
     gap: 12px;
 }
 
-.btn-view-history {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.1) 100%);
-    color: #667eea;
-    border: 1px solid rgba(102, 126, 234, 0.3);
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 12px;
+.btn-find-student {
+    width: 100%;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.1) 100%);
+    color: #5a67d8;
+    border: 1.5px solid rgba(102, 126, 234, 0.35);
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
     cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    transition: all 0.25s ease;
+    text-align: center;
 }
 
-.btn-view-history:hover {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.2) 100%);
-    border-color: rgba(102, 126, 234, 0.6);
-    color: #5a67d8;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-    transform: translateY(-2px);
+.btn-find-student:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
+    transform: translateY(-1px);
 }
 
 .sidebar-footer p {
@@ -375,6 +387,9 @@ body::before {
     flex-shrink: 0;
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
+    overflow: visible;
+    position: relative;
+    z-index: 20;
 }
 
 /* ========== CHAT MESSAGES ========== */
@@ -393,6 +408,8 @@ body::before {
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.5);
     border: 1px solid rgba(168, 85, 247, 0.2);
+    overflow: visible;
+    position: relative;
 }
 
 .language-card {
@@ -410,32 +427,6 @@ body::before {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 6px;
-}
-
-.settings-select {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.6);
-    color: #1e293b;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.settings-select:hover {
-    border-color: rgba(168, 85, 247, 0.5);
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.1);
-}
-
-.settings-select:focus {
-    outline: none;
-    border-color: #a855f7;
-    background: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
 }
 
 .welcome-message {
@@ -493,6 +484,42 @@ body::before {
     background: rgba(226, 232, 240, 0.4);
     color: #1e293b;
     border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.message.system {
+    justify-content: center;
+}
+
+.message.system .message-content {
+    max-width: 85%;
+    font-size: 13px;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #92400e;
+    text-align: center;
+}
+
+.message-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.message-body .message-paragraph {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.message-body .message-paragraph + .message-paragraph {
+    margin-top: 0.15em;
+}
+
+.assistant .message-body .message-paragraph {
+    line-height: 1.6;
+}
+
+.user .message-body .message-paragraph {
+    line-height: 1.5;
 }
 
 /* ========== MOOD TRACKER ========== */
@@ -586,6 +613,88 @@ body::before {
 .mood-calm:hover {
     background: rgba(134, 206, 171, 0.15);
     border-color: rgba(134, 206, 171, 0.5);
+}
+
+.mood-status {
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #7c3aed;
+    margin-left: 4px;
+}
+
+.mood-btn.active {
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.45);
+    transform: translateY(-1px);
+}
+
+.mood-happy.active {
+    background: rgba(251, 191, 36, 0.28);
+    border-color: rgba(251, 191, 36, 0.7);
+}
+
+.mood-sad.active {
+    background: rgba(96, 165, 250, 0.28);
+    border-color: rgba(96, 165, 250, 0.7);
+}
+
+.mood-anxious.active {
+    background: rgba(248, 113, 113, 0.28);
+    border-color: rgba(248, 113, 113, 0.7);
+}
+
+.mood-angry.active {
+    background: rgba(251, 113, 133, 0.28);
+    border-color: rgba(251, 113, 133, 0.7);
+}
+
+.mood-calm.active {
+    background: rgba(134, 206, 171, 0.28);
+    border-color: rgba(134, 206, 171, 0.7);
+}
+
+.chat-typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin: 8px 0;
+    font-size: 13px;
+    color: #64748b;
+    font-style: italic;
+}
+
+.chat-typing-indicator.hidden {
+    display: none;
+}
+
+.chat-typing-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 2px;
+    border-radius: 50%;
+    background: #a855f7;
+    animation: typing-bounce 1.2s infinite ease-in-out;
+}
+
+.chat-typing-dots span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.chat-typing-dots span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+    0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.4;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 /* ========== CHAT INPUT ========== */
