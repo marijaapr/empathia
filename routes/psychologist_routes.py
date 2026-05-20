@@ -1321,6 +1321,10 @@ def analyze_emotion(psychologist_service, emotion_detector, user_id):
 
         from services.emotion_analyzer import EmotionDetector
 
+        language = (data.get('language') or 'en').strip().lower()
+        if language not in ('en', 'mk'):
+            language = 'en'
+
         analysis = EmotionDetector.analyze_message(message)
         detected = analysis.get('detected_emotions') or []
         emotion = detected[0] if detected else 'neutral'
@@ -1343,6 +1347,7 @@ def analyze_emotion(psychologist_service, emotion_detector, user_id):
             "urgency_level": urgency_level,
             "suggest_student_support": suggest_student_support,
             "detected_emotions": detected,
+            "language": language,
         }), 200
     except Exception as e:
         import traceback

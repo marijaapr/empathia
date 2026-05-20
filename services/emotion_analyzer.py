@@ -16,7 +16,9 @@ class EmotionDetector:
             "keywords": [
                 "depressed", "depression", "hopeless", "worthless", "empty",
                 "no point", "can't get out of bed", "dark", "empty inside",
-                "never going to", "always fail", "never enough"
+                "never going to", "always fail", "never enough",
+                "депресивен", "депресивна", "депресија", "безнадежно", "безнадежна",
+                "безвреден", "безвредна", "празен", "празна", "нема смисла",
             ],
             "specializations": ["depression", "mental_health", "therapy"],
             "urgency": "high"
@@ -25,7 +27,9 @@ class EmotionDetector:
             "keywords": [
                 "anxious", "anxiety", "worried", "panic", "nervous",
                 "can't sleep", "stress", "overwhelming", "scared",
-                "afraid", "terror", "dread", "heart racing"
+                "afraid", "terror", "dread", "heart racing",
+                "анксиозен", "анксиозна", "анксиозност", "загрижен", "загрижена",
+                "нервозен", "нервозна", "стрес", "уплашен", "уплашена", "страв",
             ],
             "specializations": ["anxiety", "panic_disorders", "stress_management"],
             "urgency": "high"
@@ -34,7 +38,9 @@ class EmotionDetector:
             "keywords": [
                 "panic attack", "panic", "can't breathe", "chest pain",
                 "going to die", "losing control", "suffocating",
-                "hyperventilating", "heart attack", "fainting"
+                "hyperventilating", "heart attack", "fainting",
+                "паничен напад", "паника", "не можам да дишеам", "губам контрола",
+                "се задушувам", "ќе умрам",
             ],
             "specializations": ["panic_disorders", "anxiety", "emergency_response"],
             "urgency": "high"
@@ -67,7 +73,13 @@ class EmotionDetector:
             "keywords": [
                 "suicide", "suicidal", "want to die", "kill myself", "end it",
                 "no reason to live", "better off dead", "hurt myself",
-                "harm myself", "cutting"
+                "harm myself", "cutting",
+                # Macedonian
+                "самоубиство", "суицид", "сакам да умрам", "сакам да се убијам",
+                "да се убијам", "да се убием", "да си навредам", "да се навредам",
+                "да се повредам", "сакам да се повредам", "сакам да си навредам штета",
+                "нема смисла да живеам", "подобро е без мене", "да го завршам",
+                "да завршам со животот", "самоповредување",
             ],
             "specializations": ["crisis_intervention", "mental_health", "emergency"],
             "urgency": "high"
@@ -85,7 +97,8 @@ class EmotionDetector:
             "keywords": [
                 "trauma", "traumatic", "abuse", "raped", "assault",
                 "ptsd", "flashback", "nightmares", "triggered",
-                "violent", "attacked", "domestic violence"
+                "violent", "attacked", "domestic violence",
+                "траума", "трауматски", "злооставување", "насилство",
             ],
             "specializations": ["trauma_therapy", "ptsd", "abuse_recovery"],
             "urgency": "high"
@@ -105,7 +118,20 @@ class EmotionDetector:
     POSITIVE_KEYWORDS = [
         "happy", "great", "wonderful", "amazing", "better", "improved",
         "feeling good", "grateful", "blessed", "love", "enjoying",
-        "progress", "proud", "excited", "hopeful", "positive"
+        "progress", "proud", "excited", "hopeful", "positive",
+        "среќен", "среќна", "добро", "одлично", "подобро", "благодарен",
+        "благодарна", "љубов", "горд", "горда", "полна со енергија",
+    ]
+
+    # High-urgency phrases (EN + MK) — substring match for multi-word phrases
+    DANGER_INDICATORS = [
+        "hurt myself", "harm myself", "kill myself", "end it",
+        "can't take it", "can't go on", "no way out",
+        "want to die", "suicide", "suicidal", "in crisis", "crisis",
+        "сакам да умрам", "сакам да се убијам", "да се убијам", "да се навредам",
+        "да се повредам", "да си навредам", "не можам повеќе", "не издржувам",
+        "нема надежда", "во криза", "криза сум", "самоубиство", "суицид",
+        "помогни ми", "итна помош",
     ]
 
     @classmethod
@@ -162,13 +188,9 @@ class EmotionDetector:
         if any(e in high_urgency_emotions for e in emotions):
             return "high"
 
-        # Check for high-urgency indicators in message
-        danger_indicators = [
-            "hurt myself", "harm myself", "kill myself", "end it",
-            "can't take it", "can't go on", "no way out"
-        ]
-
-        if any(indicator in message.lower() for indicator in danger_indicators):
+        # Check for high-urgency indicators in message (EN + MK)
+        text_lower = message.lower()
+        if any(indicator in text_lower for indicator in cls.DANGER_INDICATORS):
             return "high"
 
         # Check for medium urgency emotions
@@ -247,9 +269,14 @@ class EmotionDetector:
         Returns:
             Boolean indicating match
         """
-        # Use word boundaries for more accurate matching
-        pattern = r'\b' + re.escape(keyword) + r'\b'
-        return bool(re.search(pattern, text, re.IGNORECASE))
+        # Phrases with spaces: substring match (works for EN and MK)
+        if ' ' in keyword:
+            return keyword in text
+        # Single tokens: word boundary when ASCII; substring for Cyrillic
+        if re.search(r'[a-zA-Z]', keyword):
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            return bool(re.search(pattern, text, re.IGNORECASE))
+        return keyword in text
 
     @classmethod
     def analyze_message(cls, message: str) -> Dict:
@@ -266,6 +293,10 @@ class EmotionDetector:
         urgency_level = cls.determine_urgency_level(emotions, message)
         specializations = cls.get_recommended_specializations(emotion_details)
         is_positive = cls.is_positive_message(message)
+
+        crisis_emotions = {"suicidal_ideation", "panic", "trauma"}
+        if any(e in crisis_emotions for e in emotions) or urgency_level == "high":
+            is_positive = False
 
         return {
             "detected_emotions": emotions,

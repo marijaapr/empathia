@@ -6,6 +6,60 @@ const CONFIG = {
 
 const MOOD_CHIPS = ['happy', 'sad', 'anxious', 'angry', 'calm', 'neutral'];
 
+const CHAT_UI = {
+    en: {
+        newChatError: 'Failed to create chat. Please try again.',
+        deleteTitle: 'Delete chat?',
+        deleteBody: (name) => `Delete "${name}"? This cannot be undone.`,
+        deleteError: 'Failed to delete chat. Please try again.',
+        deleteSuccess: 'Chat deleted.',
+        endNoSession: 'No active session.',
+        endAuth: 'Please log in again.',
+        endSuccess: 'Session ended. Thank you for your feedback!',
+        endError: 'Failed to end session. Please try again.',
+        endTitle: 'End Session with Psychology Student',
+        endSubtitle: 'How was your experience?',
+        endConfirmText: 'You have not selected a star rating. You can still end the session.',
+        createChat: 'Create chat',
+        creating: 'Creating…',
+        goBack: 'Go back',
+        endAnyway: 'End anyway',
+        cancel: 'Cancel',
+        endSession: 'End Session',
+    },
+    mk: {
+        newChatError: 'Неуспешно креирање на разговор. Обиди се повторно.',
+        deleteTitle: 'Избриши разговор?',
+        deleteBody: (name) => `Да се избрише „${name}"? Ова не може да се врати.`,
+        deleteError: 'Неуспешно бришење на разговор. Обиди се повторно.',
+        deleteSuccess: 'Разговорот е избришан.',
+        endNoSession: 'Нема активна сесија.',
+        endAuth: 'Најави се повторно.',
+        endSuccess: 'Сесијата заврши. Благодариме за повратните информации!',
+        endError: 'Неуспешно завршување на сесијата. Обиди се повторно.',
+        endTitle: 'Заврши сесија со студент по психологија',
+        endSubtitle: 'Како беше твоето искуство?',
+        endConfirmText: 'Не избра оценка. Сепак можеш да ја завршиш сесијата.',
+        createChat: 'Креирај разговор',
+        creating: 'Се креира…',
+        goBack: 'Назад',
+        endAnyway: 'Заврши сепак',
+        cancel: 'Откажи',
+        endSession: 'Заврши сесија',
+    },
+};
+
+let pendingDeleteSessionId = null;
+
+function chatT(key, ...args) {
+    const lang = state.language === 'mk' ? 'mk' : 'en';
+    const value = CHAT_UI[lang][key];
+    if (typeof value === 'function') {
+        return value(...args);
+    }
+    return value ?? CHAT_UI.en[key];
+}
+
 // State Management
 let state = {
     userId: null,
@@ -203,6 +257,15 @@ function setupEventListeners() {
         elements.languageSelect.addEventListener('change', (e) => {
             state.language = e.target.value;
             localStorage.setItem('language', state.language);
+            applyEndSessionModalCopy();
+            const moodLabels = {
+                en: (m) => `Selected: ${capitalizeMood(m)}`,
+                mk: (m) => `Избрано: ${capitalizeMood(m)}`,
+            };
+            if (state.selectedMood && elements.moodStatus) {
+                const fn = moodLabels[state.language] || moodLabels.en;
+                elements.moodStatus.textContent = fn(state.selectedMood);
+            }
         });
     }
 
@@ -463,16 +526,6 @@ async function loadMoodStats() {
     }
 }
 
-// Logout function
-function logout() {
-    apiFetch('/api/auth/logout', { method: 'POST' })
-        .catch(error => console.error('Logout error:', error))
-        .finally(() => {
-            localStorage.clear();
-            window.location.href = '/login';
-        });
-}
-
 function loadChatSessions(skipAutoSelect = false) {
     const userId = localStorage.getItem('user_id');
     const accessToken = localStorage.getItem('access_token');
@@ -508,7 +561,7 @@ function loadChatSessions(skipAutoSelect = false) {
                         <p class="session-title">${session.title}${label}</p>
                         <p class="session-date">${date}</p>
                     </div>
-                    <button class="btn-delete-chat" onclick="deleteSession('${session.id}')" title="Delete chat">Delete</button>
+                    <button class="btn-delete-chat" onclick='openDeleteChatModal(${JSON.stringify(session.id)}, ${JSON.stringify(session.title || "Chat")})' title="Delete chat">Delete</button>
                 </div>
             `;
         });
@@ -564,30 +617,91 @@ async function createDefaultSession() {
     }
 }
 
+function getDefaultChatTitle() {
+    return `Chat on ${new Date().toLocaleDateString()}`;
+}
+
+function setInlineError(elId, message) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (message) {
+        el.textContent = message;
+        el.hidden = false;
+    } else {
+        el.textContent = '';
+        el.hidden = true;
+    }
+}
+
+function openNewChatModal() {
+    const modal = document.getElementById('newChatModal');
+    const input = document.getElementById('newChatTitleInput');
+    if (!modal) return;
+
+    setInlineError('newChatFormError', '');
+    if (input) {
+        input.value = getDefaultChatTitle();
+    }
+    modal.style.display = 'flex';
+    setTimeout(() => input?.focus(), 50);
+    setTimeout(() => input?.select(), 80);
+}
+
+function closeNewChatModal() {
+    const modal = document.getElementById('newChatModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
 function createNewChat() {
     const userId = localStorage.getItem('user_id');
+    if (!userId) {
+        window.location.href = '/login';
+        return;
+    }
+    openNewChatModal();
+}
+
+function submitNewChat(event) {
+    event.preventDefault();
+
+    const userId = localStorage.getItem('user_id');
+    const input = document.getElementById('newChatTitleInput');
+    const title = (input?.value || '').trim() || getDefaultChatTitle();
+
     if (!userId) return;
 
-    const title = prompt('Enter chat name (optional):', `Chat on ${new Date().toLocaleDateString()}`);
-    if (title === null) return;
+    setInlineError('newChatFormError', '');
+
+    const submitBtn = document.querySelector('#newChatForm button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = chatT('creating');
+    }
 
     apiFetch(`${CONFIG.API_BASE}/chat-sessions`, {
         method: 'POST',
         body: JSON.stringify({ userId, title })
     })
-        .then(response => response.json())
+        .then(async (response) => {
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || chatT('newChatError'));
+            }
+            return data;
+        })
         .then(data => {
             if (data.session) {
-                // Clear any existing message refresh interval
+                closeNewChatModal();
+
                 if (state.messageRefreshInterval) {
                     clearInterval(state.messageRefreshInterval);
                 }
-                
+
                 state.currentSessionId = data.session.id;
-                // Save to localStorage
                 localStorage.setItem('current_session_id', data.session.id);
-                
-                // Clear messages and show welcome message
+
                 elements.messagesContainer.innerHTML = `
                     <div class="message assistant">
                         <div class="message-content message-body">
@@ -595,21 +709,111 @@ function createNewChat() {
                         </div>
                     </div>
                 `;
-                
-                // Load sessions but don't auto-select (skip redirect to first chat)
+
                 loadChatSessions(true);
-                
-                // Start the message refresh for the new session (2 seconds for faster updates)
+
                 state.messageRefreshInterval = setInterval(() => {
                     loadSessionMessages(data.session.id, true);
                 }, 2000);
-                
-                // Focus on input
+
                 elements.messageInput?.focus();
             }
         })
-        .catch(error => console.error('Error creating chat:', error));
+        .catch(error => {
+            console.error('Error creating chat:', error);
+            setInlineError('newChatFormError', error.message || chatT('newChatError'));
+        })
+        .finally(() => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = chatT('createChat');
+            }
+        });
 }
+
+function openDeleteChatModal(sessionId, chatTitle) {
+    pendingDeleteSessionId = sessionId;
+    const modal = document.getElementById('deleteChatModal');
+    const titleEl = document.getElementById('deleteChatModalTitle');
+    const bodyEl = document.getElementById('deleteChatModalBody');
+    if (!modal) return;
+
+    setInlineError('deleteChatFormError', '');
+
+    const chatName = (chatTitle || 'Chat').replace(/\s*\(with student\)\s*$/i, '').trim() || 'Chat';
+
+    if (titleEl) titleEl.textContent = chatT('deleteTitle');
+    if (bodyEl) bodyEl.textContent = chatT('deleteBody', chatName);
+
+    modal.style.display = 'flex';
+}
+
+function closeDeleteChatModal() {
+    pendingDeleteSessionId = null;
+    const modal = document.getElementById('deleteChatModal');
+    if (modal) modal.style.display = 'none';
+    setInlineError('deleteChatFormError', '');
+}
+
+function confirmDeleteChat() {
+    if (!pendingDeleteSessionId) return;
+
+    setInlineError('deleteChatFormError', '');
+    const deleteBtn = document.querySelector('#deleteChatModal .btn-danger');
+    if (deleteBtn) {
+        deleteBtn.disabled = true;
+    }
+
+    apiFetch(`${CONFIG.API_BASE}/chat-sessions/${pendingDeleteSessionId}`, {
+        method: 'DELETE'
+    })
+        .then(async (response) => {
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || chatT('deleteError'));
+            }
+            return data;
+        })
+        .then(() => {
+            const deletedId = pendingDeleteSessionId;
+            closeDeleteChatModal();
+            showToast(chatT('deleteSuccess'), 'success');
+
+            if (state.currentSessionId === deletedId) {
+                state.currentSessionId = null;
+                localStorage.removeItem('current_session_id');
+                if (elements.messagesContainer) {
+                    elements.messagesContainer.innerHTML = '';
+                }
+            }
+            loadChatSessions();
+        })
+        .catch(error => {
+            console.error('Error deleting session:', error);
+            setInlineError('deleteChatFormError', error.message || chatT('deleteError'));
+        })
+        .finally(() => {
+            if (deleteBtn) deleteBtn.disabled = false;
+        });
+}
+
+function deleteSession(sessionId) {
+    openDeleteChatModal(sessionId);
+}
+
+// Modal backdrop click + Escape
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'newChatModal') closeNewChatModal();
+    if (e.target.id === 'deleteChatModal') closeDeleteChatModal();
+    if (e.target.id === 'endSessionModal') closeEndSessionModal();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('newChatModal')?.style.display === 'flex') closeNewChatModal();
+    if (document.getElementById('deleteChatModal')?.style.display === 'flex') closeDeleteChatModal();
+    if (document.getElementById('endSessionModal')?.style.display === 'flex') closeEndSessionModal();
+});
 
 // Helper function to load messages for a specific session
 function loadSessionMessages(sessionId, silent = false) {
@@ -737,34 +941,6 @@ function loadSession(sessionId) {
     }, 2000);
 }
 
-function deleteSession(sessionId) {
-    if (!confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
-        return;
-    }
-
-    apiFetch(`${CONFIG.API_BASE}/chat-sessions/${sessionId}`, {
-        method: 'DELETE'
-    })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // If deleted session was the current one, clear messages
-                if (state.currentSessionId === sessionId) {
-                    state.currentSessionId = null;
-                    elements.messagesContainer.innerHTML = '';
-                }
-                // Reload chat sessions
-                loadChatSessions();
-            } else {
-                alert('Failed to delete chat');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting session:', error);
-            alert('Error deleting chat');
-        });
-}
-
 /**
  * Check user message for emotions and show psychologist recommendations if needed
  */
@@ -775,7 +951,8 @@ async function checkEmotionAndShowRecommendations(userMessage) {
         const response = await apiFetch('/api/psychologist/analyze-emotion', {
             method: 'POST',
             body: JSON.stringify({
-                message: userMessage
+                message: userMessage,
+                language: state.language
             })
         });
 
@@ -792,7 +969,11 @@ async function checkEmotionAndShowRecommendations(userMessage) {
         if (window.psychologistRecommendations) {
             if (suggest_student_support) {
                 console.log('🎯 Suggesting psychology student support');
-                window.psychologistRecommendations.showRecommendations(emotion, urgency_level);
+                window.psychologistRecommendations.showRecommendations(
+                    emotion,
+                    urgency_level,
+                    true
+                );
             } else {
                 console.log(`ℹ️ No auto-suggest (urgency=${urgency_level})`);
             }
@@ -864,89 +1045,130 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function applyEndSessionModalCopy() {
+    const title = document.getElementById('endSessionTitle');
+    const subtitle = document.getElementById('endSessionSubtitle');
+    const confirmText = document.getElementById('endSessionConfirmText');
+    if (title) title.textContent = chatT('endTitle');
+    if (subtitle) subtitle.textContent = chatT('endSubtitle');
+    if (confirmText) confirmText.textContent = chatT('endConfirmText');
+
+    const ratingPanel = document.getElementById('endSessionPanelRating');
+    if (ratingPanel) {
+        const cancelBtn = ratingPanel.querySelector('.btn-modal-secondary');
+        const endBtn = ratingPanel.querySelector('.btn-send');
+        if (cancelBtn) cancelBtn.textContent = chatT('cancel');
+        if (endBtn) endBtn.textContent = chatT('endSession');
+    }
+    const confirmPanel = document.getElementById('endSessionPanelConfirm');
+    if (confirmPanel) {
+        const backBtn = confirmPanel.querySelector('.btn-modal-secondary');
+        const anywayBtn = confirmPanel.querySelector('.btn-send');
+        if (backBtn) backBtn.textContent = chatT('goBack');
+        if (anywayBtn) anywayBtn.textContent = chatT('endAnyway');
+    }
+}
+
+function showEndSessionRatingPanel() {
+    document.getElementById('endSessionPanelRating')?.removeAttribute('hidden');
+    document.getElementById('endSessionPanelConfirm')?.setAttribute('hidden', '');
+    setInlineError('endSessionFormError', '');
+}
+
+function showEndSessionConfirmPanel() {
+    document.getElementById('endSessionPanelRating')?.setAttribute('hidden', '');
+    document.getElementById('endSessionPanelConfirm')?.removeAttribute('hidden');
+    setInlineError('endSessionFormError', '');
+}
+
 function showEndSessionModal() {
-    // Reset rating
     selectedRating = 0;
     const stars = document.querySelectorAll('.rating-star');
     stars.forEach(star => {
         star.classList.remove('selected');
         star.textContent = '☆';
     });
-    document.getElementById('sessionFeedback').value = '';
-    
-    // Show modal
+    const feedbackEl = document.getElementById('sessionFeedback');
+    if (feedbackEl) feedbackEl.value = '';
+
+    applyEndSessionModalCopy();
+    showEndSessionRatingPanel();
     document.getElementById('endSessionModal').style.display = 'flex';
 }
 
 function closeEndSessionModal() {
     document.getElementById('endSessionModal').style.display = 'none';
+    showEndSessionRatingPanel();
+    setInlineError('endSessionFormError', '');
 }
 
-async function submitEndSession() {
-    const feedback = document.getElementById('sessionFeedback').value.trim();
-    const userId = localStorage.getItem('user_id');
-    const token = localStorage.getItem('access_token');
-    
-    console.log('🔚 Attempting to end session:', {
-        sessionId: state.currentSessionId,
-        userId: userId,
-        hasToken: !!token,
-        rating: selectedRating,
-        feedback: feedback
-    });
-    
+function submitEndSession() {
+    setInlineError('endSessionFormError', '');
+
     if (!state.currentSessionId) {
-        alert('No active session');
+        showToast(chatT('endNoSession'), 'error');
         return;
     }
-    
-    if (!userId || !token) {
-        alert('Authentication error. Please log in again.');
+
+    if (!localStorage.getItem('user_id') || !localStorage.getItem('access_token')) {
+        showToast(chatT('endAuth'), 'error');
         return;
     }
-    
-    // Rating is optional, but show warning if not provided
+
     if (selectedRating === 0) {
-        if (!confirm('Are you sure you want to end the session without rating?')) {
-            return;
-        }
+        showEndSessionConfirmPanel();
+        return;
     }
-    
+
+    void performEndSession();
+}
+
+function confirmEndSessionWithoutRating() {
+    void performEndSession();
+}
+
+async function performEndSession() {
+    const feedback = document.getElementById('sessionFeedback')?.value.trim() || '';
+    setInlineError('endSessionFormError', '');
+
+    const endBtn = document.querySelector('#endSessionPanelRating .btn-send');
+    const confirmBtn = document.querySelector('#endSessionPanelConfirm .btn-send');
+    [endBtn, confirmBtn].forEach((btn) => {
+        if (btn) btn.disabled = true;
+    });
+
     try {
-        console.log('📤 Sending end session request...');
-        const response = await apiFetch(`/api/chat-sessions/${state.currentSessionId}/end-psychologist-session`, {
-            method: 'POST',
-            body: JSON.stringify({
-                rating: selectedRating > 0 ? selectedRating : null,
-                feedback: feedback
-            })
-        });
-        
-        console.log('📥 Response status:', response.status);
+        const response = await apiFetch(
+            `/api/chat-sessions/${state.currentSessionId}/end-psychologist-session`,
+            {
+                method: 'POST',
+                body: JSON.stringify({
+                    rating: selectedRating > 0 ? selectedRating : null,
+                    feedback: feedback,
+                }),
+            }
+        );
+
         const data = await response.json();
-        console.log('📥 Response data:', data);
-        
+
         if (response.ok && data.success) {
             closeEndSessionModal();
-            alert('Session ended successfully. Thank you for your feedback!');
-            
-            // Reset state
+            showToast(chatT('endSuccess'), 'success');
             state.lastPsychologistStatus = null;
-            
-            // Refresh the chat sessions list
             loadChatSessions(true);
-            
-            // Reload current session to update UI
             if (state.currentSessionId) {
                 loadSession(state.currentSessionId);
             }
         } else {
-            console.error('❌ End session failed:', data);
-            alert(data.error || 'Failed to end session. Please try again.');
+            setInlineError('endSessionFormError', data.error || chatT('endError'));
         }
     } catch (error) {
-        console.error('❌ Error ending session:', error);
-        alert('Failed to end session: ' + error.message);
+        console.error('Error ending session:', error);
+        setInlineError('endSessionFormError', error.message || chatT('endError'));
+    } finally {
+        [endBtn, confirmBtn].forEach((btn) => {
+            if (btn) btn.disabled = false;
+        });
     }
 }
 

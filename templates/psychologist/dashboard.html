@@ -17,6 +17,7 @@
                 <span class="dashboard-title">Psychologist Dashboard</span>
             </div>
             <div class="navbar-right">
+                <span class="user-display-name" id="psychologistDisplayName"></span>
                 <div class="online-status-toggle">
                     <input 
                         type="checkbox" 
@@ -37,7 +38,7 @@
                         <span class="notification-count" id="notificationCount" style="display: none;">0</span>
                     </button>
                 </div>
-                <button onclick="logout()" class="btn-logout">Logout</button>
+                <button type="button" onclick="openLogoutModal()" class="btn-logout">Logout</button>
             </div>
         </nav>
 
@@ -196,11 +197,6 @@
                             </div>
 
                             <div class="form-group">
-                                <label>License Number</label>
-                                <input type="text" id="profileLicense" readonly style="background-color: #f0f0f0;">
-                            </div>
-
-                            <div class="form-group">
                                 <label>Bio</label>
                                 <textarea id="profileBio" rows="4" placeholder="Describe your experience and approach..."></textarea>
                             </div>
@@ -312,6 +308,46 @@
             </div>
         </div>
 
+        <!-- Decline Request Modal -->
+        <div id="rejectRequestModal" class="modal" style="display: none;" role="dialog" aria-labelledby="rejectRequestModalTitle" aria-modal="true">
+            <div class="modal-content request-modal-content" style="max-width: 480px;">
+                <div class="modal-header">
+                    <h2 id="rejectRequestModalTitle">Decline request</h2>
+                    <button type="button" class="close-button" onclick="closeRejectRequestModal()">&times;</button>
+                </div>
+                <p style="margin: 0 0 12px; color: #64748b; font-size: 14px;">
+                    Optionally tell the user why you are declining (they may not see this immediately).
+                </p>
+                <label for="rejectReasonInput" style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px;">
+                    Reason (optional)
+                </label>
+                <textarea
+                    id="rejectReasonInput"
+                    rows="4"
+                    placeholder="e.g. Not available right now, please try another student..."
+                    style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; resize: vertical; box-sizing: border-box; margin-bottom: 12px;"
+                ></textarea>
+                <p id="rejectRequestFormError" class="form-inline-error-dashboard" role="alert" hidden></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-reject" style="background: #94a3b8;" onclick="closeRejectRequestModal()">Cancel</button>
+                    <button type="button" class="btn-reject" onclick="submitRejectRequest()">Decline request</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logout Confirmation Modal -->
+        <div id="logoutModal" class="modal" style="display: none;" role="dialog" aria-labelledby="logoutModalTitle" aria-modal="true">
+            <div class="modal-content" style="max-width: 420px;">
+                <h2 id="logoutModalTitle" style="margin-bottom: 8px;">Log out?</h2>
+                <p id="logoutModalBody" style="margin-bottom: 20px; color: #64748b; font-size: 14px;"></p>
+                <p id="logoutFormError" class="form-inline-error-dashboard" role="alert" hidden></p>
+                <div class="modal-actions">
+                    <button type="button" id="logoutModalCancelBtn" class="btn-reject" style="background: #94a3b8;" onclick="closeLogoutModal()">Cancel</button>
+                    <button type="button" id="logoutModalConfirmBtn" class="btn-reject" onclick="confirmLogout()">Log out</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Chat Modal -->
         <div id="chatModal" class="modal" style="display: none;">
             <div class="modal-content chat-modal">
@@ -334,6 +370,8 @@
     </div>
 
     <script src="/static/api.js"></script>
+    <script src="/static/ui-toast.js"></script>
+    <script src="/static/ui-logout.js"></script>
     <script src="/static/psychologist/dashboard.js"></script>
 </body>
 </html>
