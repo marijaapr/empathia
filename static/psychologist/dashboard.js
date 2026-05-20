@@ -23,8 +23,25 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeDashboard();
 });
 
+function setPsychologistDisplayName(name) {
+    const el = document.getElementById('psychologistDisplayName');
+    const trimmed = (name || '').trim();
+    if (!el || !trimmed) return;
+    el.textContent = trimmed;
+    localStorage.setItem('user_name', trimmed);
+}
+
+function initPsychologistDisplayName() {
+    const cached = localStorage.getItem('user_name');
+    if (cached) {
+        setPsychologistDisplayName(cached);
+    }
+}
+
 function initializeDashboard() {
     console.log('Initializing dashboard for psychologist:', currentUserEmail);
+
+    initPsychologistDisplayName();
     
     // Load psychologist profile
     loadPsychologistProfile();
@@ -203,6 +220,11 @@ function loadPsychologistProfile() {
 
 function updateProfileDisplay(profile) {
     console.log('📋 Updating profile display with:', profile);
+
+    const displayName = (profile.full_name || '').trim();
+    if (displayName) {
+        setPsychologistDisplayName(displayName);
+    }
     
     // Update profile form if visible
     if (document.getElementById('profileFullName')) {
@@ -217,9 +239,6 @@ function updateProfileDisplay(profile) {
     }
     if (document.getElementById('profileResponseTime')) {
         document.getElementById('profileResponseTime').value = profile.average_response_time_minutes || '';
-    }
-    if (document.getElementById('profileLicense')) {
-        document.getElementById('profileLicense').value = profile.license_number || '';
     }
     if (document.getElementById('profileSpecializations')) {
         const specs = Array.isArray(profile.specializations) 
@@ -1129,29 +1148,11 @@ function closeModal(modalId) {
 }
 
 function showNotification(message, type = 'success') {
-    // Create a simple toast notification
-    const notification = document.createElement('div');
-    notification.className = `toast-notification ${type}`;
-    notification.textContent = message;
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 16px 24px;
-        background: ${type === 'error' ? '#dc2626' : '#16a34a'};
-        color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 9999;
-        animation: slideIn 0.3s ease;
-    `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    if (typeof showToast === 'function') {
+        showToast(message, type);
+        return;
+    }
+    console.log(`[${type}] ${message}`);
 }
 
 function formatDate(dateString) {
@@ -1179,54 +1180,92 @@ function formatDuration(minutes) {
     return `${hours}h ${mins}m`;
 }
 
-function logout() {
-    if (confirm('Are you sure you want to logout?')) {
-        apiFetch('/api/auth/logout', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${currentAccessToken}`
-            }
-        })
-        .then(() => {
-            localStorage.clear();
-            window.location.href = '/login';
-        })
-        .catch(error => {
-            console.error('Error logging out:', error);
-            localStorage.clear();
-            window.location.href = '/login';
-        });
+function setRejectFormError(message) {
+    const el = document.getElementById('rejectRequestFormError');
+    if (!el) return;
+    if (message) {
+        el.textContent = message;
+        el.hidden = false;
+    } else {
+        el.textContent = '';
+        el.hidden = true;
     }
 }
 
+function openRejectRequestModal() {
+    const requestModal = document.getElementById('requestModal');
+    const rejectModal = document.getElementById('rejectRequestModal');
+    const input = document.getElementById('rejectReasonInput');
+    if (!rejectModal || !requestModal?.dataset?.requestId) return;
+
+    setRejectFormError('');
+    if (input) input.value = '';
+    rejectModal.style.display = 'flex';
+    setTimeout(() => input?.focus(), 50);
+}
+
+function closeRejectRequestModal() {
+    const rejectModal = document.getElementById('rejectRequestModal');
+    if (rejectModal) rejectModal.style.display = 'none';
+    setRejectFormError('');
+}
+
 function showRejectReason() {
-    const reason = prompt('Please provide a reason for declining:');
-    if (reason) {
-        const requestId = document.getElementById('requestModal').dataset.requestId;
-        
-        apiFetch(`/api/psychologist/request/${requestId}/reject`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${currentAccessToken}`,
-                'X-User-ID': currentUserId
-            },
-            body: JSON.stringify({ reason })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('❌ Reject response:', data);
-            if (data.success || data.request) {
-                showNotification('Request declined');
-                closeModal('requestModal');
-                loadDashboardData();
-            } else {
+    openRejectRequestModal();
+}
+
+function submitRejectRequest() {
+    const requestId = document.getElementById('requestModal')?.dataset?.requestId;
+    const reason = (document.getElementById('rejectReasonInput')?.value || '').trim();
+
+    if (!requestId) {
+        showNotification('Error: Request ID not found', 'error');
+        return;
+    }
+
+    setRejectFormError('');
+    const declineBtn = document.querySelector('#rejectRequestModal .btn-reject:last-child');
+    if (declineBtn) declineBtn.disabled = true;
+
+    apiFetch(`/api/psychologist/request/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentAccessToken}`,
+            'X-User-ID': currentUserId,
+        },
+        body: JSON.stringify({ reason: reason || 'No reason provided' }),
+    })
+        .then(async (response) => {
+            const data = await response.json();
+            if (!response.ok || !(data.success || data.request)) {
                 throw new Error(data.error || 'Failed to reject request');
             }
+            return data;
         })
-        .catch(error => {
+        .then(() => {
+            showNotification('Request declined', 'success');
+            closeRejectRequestModal();
+            closeModal('requestModal');
+            loadDashboardData();
+        })
+        .catch((error) => {
             console.error('Error rejecting request:', error);
-            showNotification('Failed to reject request: ' + error.message, 'error');
+            setRejectFormError(error.message || 'Failed to decline request');
+        })
+        .finally(() => {
+            if (declineBtn) declineBtn.disabled = false;
         });
-    }
 }
+
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'rejectRequestModal') {
+        closeRejectRequestModal();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('rejectRequestModal')?.style.display === 'flex') {
+        closeRejectRequestModal();
+    }
+});

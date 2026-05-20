@@ -28,7 +28,7 @@
             </div>
             <div class="navbar-right">
                 <span class="user-display-name" id="userDisplayName"></span>
-                <button type="button" onclick="logout()" class="btn-primary btn-logout">Logout</button>
+                <button type="button" onclick="openLogoutModal()" class="btn-primary btn-logout">Logout</button>
             </div>
         </header>
 
@@ -175,6 +175,70 @@
         </div>
     </div>
 
+    <!-- New Chat Name Modal -->
+    <div id="newChatModal" class="modal" style="display: none;" role="dialog" aria-labelledby="newChatModalTitle" aria-modal="true">
+        <div class="modal-content" style="max-width: 420px;">
+            <h2 id="newChatModalTitle" style="margin-bottom: 8px;">New chat</h2>
+            <p style="margin-bottom: 18px; color: #64748b; font-size: 14px;">Give this conversation a name so you can find it later.</p>
+            <form id="newChatForm" onsubmit="submitNewChat(event)">
+                <label for="newChatTitleInput" style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px;">Chat name</label>
+                <input
+                    type="text"
+                    id="newChatTitleInput"
+                    placeholder="e.g. Evening reflection"
+                    required
+                    minlength="1"
+                    maxlength="80"
+                    autocomplete="off"
+                    style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-bottom: 20px; box-sizing: border-box;"
+                >
+                <p id="newChatFormError" class="form-inline-error" role="alert" hidden></p>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="closeNewChatModal()" class="btn-modal-secondary" style="flex: 1;">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn-send" style="flex: 1; padding: 12px;">
+                        Create chat
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Chat Modal -->
+    <div id="deleteChatModal" class="modal" style="display: none;" role="dialog" aria-labelledby="deleteChatModalTitle" aria-modal="true">
+        <div class="modal-content" style="max-width: 420px;">
+            <h2 id="deleteChatModalTitle" style="margin-bottom: 8px;">Delete chat?</h2>
+            <p id="deleteChatModalBody" style="margin-bottom: 20px; color: #64748b; font-size: 14px;"></p>
+            <p id="deleteChatFormError" class="form-inline-error" role="alert" hidden></p>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="closeDeleteChatModal()" class="btn-modal-secondary" style="flex: 1;">
+                    Cancel
+                </button>
+                <button type="button" onclick="confirmDeleteChat()" class="btn-send btn-danger" style="flex: 1; padding: 12px;">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal" style="display: none;" role="dialog" aria-labelledby="logoutModalTitle" aria-modal="true">
+        <div class="modal-content" style="max-width: 420px;">
+            <h2 id="logoutModalTitle" style="margin-bottom: 8px;">Log out?</h2>
+            <p id="logoutModalBody" style="margin-bottom: 20px; color: #64748b; font-size: 14px;"></p>
+            <p id="logoutFormError" class="form-inline-error" role="alert" hidden></p>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" id="logoutModalCancelBtn" onclick="closeLogoutModal()" class="btn-modal-secondary" style="flex: 1;">
+                    Cancel
+                </button>
+                <button type="button" id="logoutModalConfirmBtn" onclick="confirmLogout()" class="btn-send btn-danger" style="flex: 1; padding: 12px;">
+                    Log out
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Name Setup Modal -->
     <div id="nameSetupModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 400px;">
@@ -197,38 +261,57 @@
     </div>
 
     <!-- End Session & Rating Modal -->
-    <div id="endSessionModal" class="modal" style="display: none;">
+    <div id="endSessionModal" class="modal" style="display: none;" role="dialog" aria-modal="true">
         <div class="modal-content" style="max-width: 500px;">
-            <h2 style="margin-bottom: 10px;">End Session with Psychology Student</h2>
-            <p style="margin-bottom: 20px; color: #666;">How was your experience?</p>
+            <div id="endSessionPanelRating">
+                <h2 id="endSessionTitle" style="margin-bottom: 10px;">End Session with Psychology Student</h2>
+                <p id="endSessionSubtitle" style="margin-bottom: 20px; color: #666;">How was your experience?</p>
 
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 10px; font-weight: 600;">Rate your experience:</label>
-                <div id="ratingStars" style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
-                    <span class="rating-star" data-rating="1" onclick="selectRating(1)">☆</span>
-                    <span class="rating-star" data-rating="2" onclick="selectRating(2)">☆</span>
-                    <span class="rating-star" data-rating="3" onclick="selectRating(3)">☆</span>
-                    <span class="rating-star" data-rating="4" onclick="selectRating(4)">☆</span>
-                    <span class="rating-star" data-rating="5" onclick="selectRating(5)">☆</span>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600;">Rate your experience:</label>
+                    <div id="ratingStars" style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+                        <span class="rating-star" data-rating="1" onclick="selectRating(1)">☆</span>
+                        <span class="rating-star" data-rating="2" onclick="selectRating(2)">☆</span>
+                        <span class="rating-star" data-rating="3" onclick="selectRating(3)">☆</span>
+                        <span class="rating-star" data-rating="4" onclick="selectRating(4)">☆</span>
+                        <span class="rating-star" data-rating="5" onclick="selectRating(5)">☆</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label for="sessionFeedback" style="display: block; margin-bottom: 10px; font-weight: 600;">Feedback (optional):</label>
+                    <textarea
+                        id="sessionFeedback"
+                        placeholder="Share your thoughts about this session..."
+                        style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-height: 80px; resize: vertical; box-sizing: border-box;"
+                    ></textarea>
+                </div>
+
+                <p id="endSessionFormError" class="form-inline-error" role="alert" hidden></p>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="closeEndSessionModal()" class="btn-modal-secondary" style="flex: 1;">
+                        Cancel
+                    </button>
+                    <button type="button" onclick="submitEndSession()" class="btn-send" style="flex: 1; padding: 12px;">
+                        End Session
+                    </button>
                 </div>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 10px; font-weight: 600;">Feedback (optional):</label>
-                <textarea
-                    id="sessionFeedback"
-                    placeholder="Share your thoughts about this session..."
-                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-height: 80px; resize: vertical;"
-                ></textarea>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <button onclick="closeEndSessionModal()" class="btn-send" style="flex: 1; background: #ccc; padding: 12px;">
-                    Cancel
-                </button>
-                <button onclick="submitEndSession()" class="btn-send" style="flex: 1; padding: 12px;">
-                    End Session
-                </button>
+            <div id="endSessionPanelConfirm" hidden>
+                <h2 style="margin-bottom: 10px;">End without a rating?</h2>
+                <p id="endSessionConfirmText" style="margin-bottom: 20px; color: #64748b; font-size: 14px;">
+                    You have not selected a star rating. You can still end the session.
+                </p>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="showEndSessionRatingPanel()" class="btn-modal-secondary" style="flex: 1;">
+                        Go back
+                    </button>
+                    <button type="button" onclick="confirmEndSessionWithoutRating()" class="btn-send" style="flex: 1; padding: 12px;">
+                        End anyway
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -289,9 +372,62 @@
         .end-session-btn:hover {
             background: #c82333;
         }
+
+        .btn-modal-secondary {
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .btn-modal-secondary:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        #newChatTitleInput:focus {
+            outline: none;
+            border-color: #a855f7;
+            box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+        }
+
+        .form-inline-error {
+            color: #dc2626;
+            font-size: 13px;
+            margin: 0 0 12px;
+        }
+
+        .form-inline-error[hidden] {
+            display: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+        }
+
+        .btn-danger:hover {
+            filter: brightness(1.05);
+        }
+
+        @keyframes empathiaToastIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes empathiaToastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(20px); }
+        }
     </style>
 
     <script src="/static/api.js"></script>
+    <script src="/static/ui-toast.js"></script>
+    <script src="/static/ui-logout.js"></script>
     <script src="/static/custom-select.js"></script>
     <script src="/static/script.js"></script>
     <script src="/static/psychologist-recommendations.js"></script>
