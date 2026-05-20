@@ -64,24 +64,9 @@ def with_services(f):
 # ============================================================================
 
 def get_auth_user(request_headers: Dict) -> Optional[str]:
-    """
-    Extract user ID from JWT token in Authorization header
-    
-    Args:
-        request_headers: Flask request headers
-        
-    Returns:
-        User ID or None
-    """
-    auth_header = request_headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return None
-    
-    # In production, verify the JWT token properly
-    # For now, assume the token is valid and contains user_id
-    token = auth_header.split(' ')[1]
-    # TODO: Verify JWT and extract user_id
-    return request.headers.get('X-User-ID')
+    """Verify JWT and return authenticated user id (ignores X-User-ID)."""
+    from services.request_auth import get_authenticated_user_id
+    return get_authenticated_user_id(request_headers)
 
 
 def require_auth(f):
@@ -98,10 +83,12 @@ def require_auth(f):
 
 
 def require_psychologist_role(f):
-    """Decorator to require psychologist role"""
+    """Decorator to require psychologist role (psychologist_profiles row)."""
     @wraps(f)
     def decorated_function(psychologist_service, emotion_detector, user_id, *args, **kwargs):
-        # TODO: Check if user has psychologist role in Supabase
+        from database.supabase_db import SupabaseDB
+        if SupabaseDB.get_user_role(user_id) != 'psychologist':
+            return jsonify({"error": "Psychology student access required"}), 403
         return f(psychologist_service, emotion_detector, user_id, *args, **kwargs)
     return decorated_function
 
@@ -596,6 +583,18 @@ def get_pending_requests():
         
         requests_list = response.data or []
         print(f"✅ Found {len(requests_list)} pending requests")
+        
+        # DEBUG: Show all requests if none found
+        if len(requests_list) == 0:
+            all_requests = supabase.table('psychologist_chat_requests')\
+                .select('psychologist_id, status')\
+                .eq('status', 'pending')\
+                .execute()
+            print(f"🔍 DEBUG: Total pending requests in DB: {len(all_requests.data or [])}")
+            if all_requests.data:
+                psych_ids = set(r.get('psychologist_id') for r in all_requests.data)
+                print(f"🔍 DEBUG: Pending requests for psychologist IDs: {psych_ids}")
+                print(f"🔍 DEBUG: Looking for: {psychologist_id}")
         
         # Get user emails for all requests
         formatted_requests = []
@@ -1310,70 +1309,40 @@ def mark_notification_read(psychologist_service, emotion_detector, user_id: str,
 # ============================================================================
 
 @psychologist_bp.route('/analyze-emotion', methods=['POST'])
-def analyze_emotion():
-    """Analyze emotional content and get recommendations - NO AUTH REQUIRED"""
+@require_auth
+def analyze_emotion(psychologist_service, emotion_detector, user_id):
+    """Analyze message emotion/urgency for logged-in users (JWT required)."""
     try:
-        data = request.get_json()
-        message = data.get('message', '')
-        
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
+
         if not message:
             return jsonify({"error": "Message required"}), 400
-        
-        message_lower = message.lower()
-        
-        # Detect urgency level using keywords - comprehensive list
-        high_urgency_keywords = [
-            # Suicide/self-harm
-            'suicide', 'suicidal', 'kill', 'hurt myself', 'harm myself', 'self harm', 'self-harm',
-            'cutting', 'cut myself', 'end it', 'die', 'death', 'dead', 'want to die',
-            # Crisis/emergency
-            'panic attack', 'crisis', 'emergency', 'urgent', 'urgent help', 'help me', 'save me',
-            # Severe emotional states
-            'depressed', 'depression', 'hopeless', 'hopelessness', 'worthless', 'worthlessness',
-            'can\'t take it', 'can\'t go on', 'no point', 'give up', 'want to give up',
-            'overwhelmed', 'extremely anxious', 'severe anxiety', 'terrified', 'terrifying'
-        ]
-        
-        medium_urgency_keywords = [
-            'sad', 'sadness', 'worried', 'stressed', 'stressed out', 'nervous', 'sick', 'ill',
-            'anxious', 'anxiety', 'scared', 'afraid', 'down'
-        ]
-        
-        urgency_level = 'low'
-        
-        # Check high urgency first - use word boundary matching
-        for keyword in high_urgency_keywords:
-            if keyword in message_lower:
-                urgency_level = 'high'
-                print(f"🎯 High urgency keyword found: '{keyword}'")
-                break
-        
-        # Check medium urgency if not high
-        if urgency_level == 'low':
-            for keyword in medium_urgency_keywords:
-                if keyword in message_lower:
-                    urgency_level = 'medium'
-                    print(f"⚠️ Medium urgency keyword found: '{keyword}'")
-                    break
-        
-        # Simple emotion categorization
-        emotion = 'neutral'
-        if 'sad' in message_lower or 'depressed' in message_lower:
-            emotion = 'sad'
-        elif 'happy' in message_lower or 'joy' in message_lower or 'excited' in message_lower:
-            emotion = 'happy'
-        elif 'angry' in message_lower or 'mad' in message_lower or 'furious' in message_lower:
-            emotion = 'angry'
-        elif 'anxious' in message_lower or 'worried' in message_lower or 'nervous' in message_lower:
-            emotion = 'anxious'
-        elif 'suicidal' in message_lower or 'hurt' in message_lower or 'crisis' in message_lower:
-            emotion = 'crisis'
-        
-        print(f"📊 Emotion analysis - Message: {message[:50]}... | Emotion: {emotion} | Urgency: {urgency_level}")
-        
+
+        from services.emotion_analyzer import EmotionDetector
+
+        analysis = EmotionDetector.analyze_message(message)
+        detected = analysis.get('detected_emotions') or []
+        emotion = detected[0] if detected else 'neutral'
+        urgency_level = analysis.get('urgency_level', 'low')
+        is_positive = analysis.get('is_positive', False)
+
+        # Auto-suggest student modal only for high urgency, non-positive messages
+        suggest_student_support = (
+            urgency_level == 'high' and not is_positive
+        )
+
+        print(
+            f"📊 Emotion analysis user={user_id} "
+            f"emotion={emotion} urgency={urgency_level} "
+            f"suggest_student={suggest_student_support}"
+        )
+
         return jsonify({
             "emotion": emotion,
-            "urgency_level": urgency_level
+            "urgency_level": urgency_level,
+            "suggest_student_support": suggest_student_support,
+            "detected_emotions": detected,
         }), 200
     except Exception as e:
         import traceback

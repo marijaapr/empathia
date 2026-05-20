@@ -85,24 +85,9 @@
             align-items: center;
         }
 
-        .login-btn {
-            background: transparent;
-            color: #71717a;
-            border: 1.5px solid #e4e4e7;
-            padding: 9px 24px;
-            border-radius: 6px;
-            font-weight: 600;
+        .navbar .btn-primary {
+            padding: 10px 24px;
             font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .login-btn:hover {
-            background: #f4f4f5;
-            border-color: #667eea;
-            color: #667eea;
         }
 
         /* Main Content - Split Layout */
@@ -193,72 +178,262 @@
             color: #18181b;
         }
 
-        /* Dashboard Preview - Glassmorphic Card */
+        /* Mini chat preview card (Concept A) */
         .dashboard-preview {
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.65);
             backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.9);
             border-radius: 16px;
-            padding: 32px;
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.1);
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.12);
             width: 100%;
-            max-width: 380px;
+            max-width: 400px;
             animation: float 6s ease-in-out infinite;
+            position: relative;
         }
 
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
+            50% { transform: translateY(-8px); }
         }
 
-        .dashboard-header {
+        .preview-chat-header {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+
+        .preview-header-actions {
+            display: flex;
+            align-items: center;
             gap: 8px;
-            margin-bottom: 24px;
+            flex-shrink: 0;
         }
 
-        .dot {
-            width: 10px;
-            height: 10px;
+        .preview-badge,
+        .preview-live-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 28px;
+            padding: 0 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .preview-badge {
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #71717a;
+            background: rgba(244, 244, 245, 0.95);
+            border: 1px solid #e4e4e7;
+        }
+
+        .preview-app-name {
+            font-size: 15px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .preview-live-pill {
+            color: #0d6e3e;
+            background: rgba(134, 206, 171, 0.15);
+            border: 1px solid rgba(134, 206, 171, 0.35);
+            gap: 6px;
+        }
+
+        .preview-live-pill::before {
+            content: '';
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            background: #e4e4e7;
+            background: #22c55e;
+            animation: pulse-dot 2s ease-in-out infinite;
         }
 
-        .dot.active {
-            background: #667eea;
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
-        .dashboard-item {
+        .preview-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 14px;
             background: rgba(102, 126, 234, 0.06);
-            border-left: 3px solid #667eea;
-            padding: 16px;
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .preview-tab {
+            flex: 1;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #71717a;
+            padding: 6px 10px;
             border-radius: 6px;
+        }
+
+        .preview-tab.active {
+            background: #fff;
+            color: #667eea;
+            box-shadow: 0 1px 4px rgba(102, 126, 234, 0.15);
+        }
+
+        .preview-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 14px;
+            min-height: 120px;
+        }
+
+        .preview-bubble {
+            max-width: 88%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .preview-bubble-ai {
+            align-self: flex-start;
+            background: rgba(102, 126, 234, 0.1);
+            color: #3f3f46;
+            border-bottom-left-radius: 4px;
+        }
+
+        .preview-bubble-user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .preview-mood-section {
+            padding-top: 12px;
+            border-top: 1px solid rgba(102, 126, 234, 0.1);
             margin-bottom: 12px;
         }
 
-        .dashboard-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .item-label {
-            font-size: 12px;
-            color: #a1a1aa;
+        .preview-mood-label {
+            display: block;
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 6px;
+            color: #a1a1aa;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
+            margin-bottom: 8px;
         }
 
-        .item-value {
-            font-size: 16px;
-            color: #18181b;
+        .preview-mood-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .preview-mood-chip {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1px solid transparent;
+            opacity: 0.45;
+        }
+
+        .preview-mood-chip.active {
+            opacity: 1;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+        }
+
+        .preview-mood-chip.mood-happy {
+            border-color: rgba(251, 191, 36, 0.4);
+            background: rgba(251, 191, 36, 0.12);
+            color: #b8860b;
+        }
+
+        .preview-mood-chip.mood-sad {
+            border-color: rgba(96, 165, 250, 0.4);
+            background: rgba(96, 165, 250, 0.1);
+            color: #1e40af;
+        }
+
+        .preview-mood-chip.mood-anxious {
+            border-color: rgba(248, 113, 113, 0.4);
+            background: rgba(248, 113, 113, 0.1);
+            color: #991b1b;
+        }
+
+        .preview-mood-chip.mood-angry {
+            border-color: rgba(251, 113, 133, 0.4);
+            background: rgba(251, 113, 133, 0.1);
+            color: #831843;
+        }
+
+        .preview-mood-chip.mood-calm {
+            border-color: rgba(134, 206, 171, 0.5);
+            background: rgba(134, 206, 171, 0.15);
+            color: #0d6e3e;
+        }
+
+        .preview-student-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(102, 126, 234, 0.06);
+            border-radius: 10px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .preview-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 14px;
             font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
 
-        .item-meta {
-            font-size: 12px;
+        .preview-student-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .preview-student-info strong {
+            display: block;
+            font-size: 13px;
+            color: #18181b;
+            margin-bottom: 2px;
+        }
+
+        .preview-student-info span {
+            font-size: 11px;
             color: #71717a;
-            margin-top: 4px;
+        }
+
+        .preview-online-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.12);
+            padding: 4px 8px;
+            border-radius: 6px;
+            flex-shrink: 0;
         }
 
         /* Bottom Features */
@@ -289,6 +464,147 @@
 
         .feature-badge:first-child .feature-icon {
             display: none;
+        }
+
+        /* How it works modal */
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(24, 24, 27, 0.45);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+
+        .modal-overlay.is-open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-dialog {
+            background: #fff;
+            border-radius: 16px;
+            max-width: 520px;
+            width: 100%;
+            padding: 32px;
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.2);
+            position: relative;
+            transform: translateY(12px);
+            transition: transform 0.25s ease;
+        }
+
+        .modal-overlay.is-open .modal-dialog {
+            transform: translateY(0);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: #f4f4f5;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            font-size: 22px;
+            line-height: 1;
+            color: #71717a;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: #e4e4e7;
+            color: #18181b;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: #18181b;
+            margin-bottom: 8px;
+            padding-right: 40px;
+        }
+
+        .modal-subtitle {
+            font-size: 14px;
+            color: #71717a;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .modal-steps {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-step {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        .step-number {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .step-content h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #18181b;
+            margin-bottom: 4px;
+        }
+
+        .step-content p {
+            font-size: 14px;
+            color: #71717a;
+            line-height: 1.6;
+        }
+
+        .modal-footer-note {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e4e4e7;
+            font-size: 12px;
+            color: #a1a1aa;
+            line-height: 1.5;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .dashboard-preview {
+                animation: none;
+            }
+
+            .preview-live-pill::before {
+                animation: none;
+            }
+
+            .modal-overlay,
+            .modal-dialog {
+                transition: none;
+            }
         }
 
         /* Responsive */
@@ -384,7 +700,21 @@
 
             .dashboard-preview {
                 max-width: 100%;
-                padding: 20px;
+                padding: 16px;
+            }
+
+            .preview-messages {
+                min-height: 100px;
+            }
+
+            .preview-bubble {
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+
+            .preview-mood-chip {
+                font-size: 10px;
+                padding: 4px 8px;
             }
 
             .bottom-features {
@@ -408,6 +738,7 @@
             }
         }
     </style>
+    <script src="/static/landing.js"></script>
 </head>
 <body>
     <div class="container-full">
@@ -415,7 +746,7 @@
         <nav class="navbar">
             <div class="logo">Empathia</div>
             <div class="nav-links">
-                <a href="/login" class="login-btn">Log In</a>
+                <a href="/login" class="btn-primary">Log In</a>
             </div>
         </nav>
 
@@ -423,45 +754,62 @@
         <div class="main-content">
             <!-- Left Content -->
             <div class="content-left">
-                <h1 class="headline">Your Emotional Support Companion.</h1>
+                <h1 class="headline">Emotional support for students—by students and AI.</h1>
                 <p class="subheadline">
-                    A safe, private space to talk with our AI companion or connect with licensed, 
-                    professional psychologists. Your mental well-being is our priority.
+                    A safe, private space to talk with our AI companion or connect with psychology
+                    students who are learning and practicing in a supervised setting—not licensed
+                    professionals. Your mental well-being is our priority.
                 </p>
 
                 <!-- CTA Buttons -->
                 <div class="cta-buttons">
                     <a href="/login" class="btn-primary">Get Started</a>
-                    <button class="btn-secondary">Learn More</button>
+                    <button type="button" class="btn-secondary" id="learnMoreBtn" aria-haspopup="dialog">Learn More</button>
                 </div>
             </div>
 
-            <!-- Right Content - Dashboard Preview -->
+            <!-- Right Content - Mini chat preview -->
             <div class="content-right">
-                <div class="dashboard-preview">
-                    <div class="dashboard-header">
-                        <div class="dot active"></div>
-                        <div class="dot"></div>
-                        <div class="dot"></div>
+                <div class="dashboard-preview" aria-hidden="true">
+                    <div class="preview-chat-header">
+                        <span class="preview-app-name">Empathia</span>
+                        <div class="preview-header-actions">
+                            <span class="preview-live-pill">AI active</span>
+                            <span class="preview-badge">Preview</span>
+                        </div>
                     </div>
 
-                    <div class="dashboard-item">
-                        <div class="item-label">Your Mood Today</div>
-                        <div class="item-value">Calm & Focused</div>
-                        <div class="item-meta">Trending positive ↑</div>
+                    <div class="preview-tabs">
+                        <span class="preview-tab active">AI Chat</span>
+                        <span class="preview-tab">Students</span>
                     </div>
 
-                    <div class="dashboard-item">
-                        <div class="item-label">Recent Conversation</div>
-                        <div class="item-value">Supportive Friend</div>
-                        <div class="item-meta">2 hours ago</div>
+                    <div class="preview-messages">
+                        <div class="preview-bubble preview-bubble-ai">How are you feeling today?</div>
+                        <div class="preview-bubble preview-bubble-user">A bit stressed about exams…</div>
+                        <div class="preview-bubble preview-bubble-ai">Want to talk it through? I'm here.</div>
                     </div>
 
-                    <div class="dashboard-item">
-                        <div class="item-label">Next Session</div>
-                        <div class="item-value">Available Now</div>
-                        <div class="item-meta">Professional assistance</div>
+                    <div class="preview-mood-section">
+                        <span class="preview-mood-label">How are you feeling?</span>
+                        <div class="preview-mood-chips">
+                            <span class="preview-mood-chip mood-happy">Happy</span>
+                            <span class="preview-mood-chip mood-sad">Sad</span>
+                            <span class="preview-mood-chip mood-anxious">Anxious</span>
+                            <span class="preview-mood-chip mood-angry">Angry</span>
+                            <span class="preview-mood-chip mood-calm active">Calm</span>
+                        </div>
                     </div>
+
+                    <div class="preview-student-row">
+                        <div class="preview-avatar" aria-hidden="true">M</div>
+                        <div class="preview-student-info">
+                            <strong>Mira K.</strong>
+                            <span>Psychology student · Supervised</span>
+                        </div>
+                        <span class="preview-online-count">2 online</span>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -469,8 +817,47 @@
         <!-- Bottom Features -->
         <div class="bottom-features">
             <div class="feature-badge"><span class="feature-icon"></span>24/7 AI Support</div>
-            <div class="feature-badge"><span class="feature-icon"></span>Licensed Psychologists</div>
+            <div class="feature-badge"><span class="feature-icon"></span>Students</div>
             <div class="feature-badge"><span class="feature-icon"></span>100% Private & Secure</div>
+        </div>
+    </div>
+
+    <!-- How it works modal -->
+    <div class="modal-overlay" id="howItWorksModal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <button type="button" class="modal-close" id="modalCloseBtn" aria-label="Close">&times;</button>
+            <h2 class="modal-title" id="modalTitle">How Empathia Works</h2>
+            <p class="modal-subtitle">
+                Reflect on your own with AI, or connect with psychology students building real-world
+                experience under supervision.
+            </p>
+            <ol class="modal-steps">
+                <li class="modal-step">
+                    <span class="step-number">1</span>
+                    <div class="step-content">
+                        <h3>Create your account</h3>
+                        <p>Sign up as someone seeking support, or as a psychology student offering supervised practice sessions.</p>
+                    </div>
+                </li>
+                <li class="modal-step">
+                    <span class="step-number">2</span>
+                    <div class="step-content">
+                        <h3>Chat with AI or a student</h3>
+                        <p>Use the AI companion anytime for reflection and mood tracking, or request a session with a student psychologist when you want human connection.</p>
+                    </div>
+                </li>
+                <li class="modal-step">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                        <h3>Track your progress</h3>
+                        <p>Log how you feel over time and continue conversations in a private space designed for emotional support.</p>
+                    </div>
+                </li>
+            </ol>
+            <p class="modal-footer-note">
+                Student psychologists on this platform are in training and are not licensed clinicians.
+                Empathia is not for emergencies—please contact local crisis services if you need immediate help.
+            </p>
         </div>
     </div>
 </body>

@@ -17,8 +17,9 @@ from supabase import create_client, Client
 # Import services
 from database.supabase_db import SupabaseDB
 from services.auth_service import AuthService
-from services.openai_service import get_chat_response, extract_sentiment
-from services.emotion_service import categorize_emotion, get_emotion_description, get_emotion_description_mk
+from services.request_auth import require_authenticated_user, extract_user_id_from_verify_result
+from services.openai_service import get_chat_response
+from services.emotion_service import categorize_emotion
 from services.reflection_service import generate_reflection_prompt, suggest_reflection_activity
 from services.safety_service import (
     is_content_safe, get_safety_warning, sanitize_input,
@@ -87,9 +88,8 @@ def signup():
         "password": "password123",
         "username": "john_doe",
         "role": "user" or "psychologist",
-        // For psychologists only:
-        "license": "license_number",
-        "bio": "professional bio",
+        # For psychology students only:
+        "bio": "about you",
         "specializations": "anxiety, depression, etc"
     }
     """
@@ -114,25 +114,26 @@ def signup():
         if len(password) < 6:
             return jsonify({'error': 'Password must be at least 6 characters'}), 400
 
+        if not username or len(username) < 2:
+            return jsonify({'error': 'Full name is required (at least 2 characters)'}), 400
+
         if role not in ['user', 'psychologist']:
             return jsonify({'error': 'Invalid role. Must be "user" or "psychologist"'}), 400
 
-        # For psychologists, validate required fields
+        # For psychology students, validate required profile fields
         if role == 'psychologist':
-            license_number = data.get('license', '').strip()
             bio = data.get('bio', '').strip()
             specializations = data.get('specializations', '').strip()
-            
-            print(f"   License: {license_number}")
+
             print(f"   Bio: {bio[:50] if bio else 'MISSING'}...")
             print(f"   Specializations: {specializations}")
-            
-            if not license_number or not bio or not specializations:
-                error_msg = 'For psychologists: license, bio, and specializations are required'
+
+            if not bio or not specializations:
+                error_msg = 'For psychology students: about you and areas of interest are required'
                 print(f"   ❌ {error_msg}")
                 return jsonify({'error': error_msg}), 400
-            
-            print(f"   ✅ All psychologist fields provided")
+
+            print(f"   ✅ All student practitioner fields provided")
 
         # Sign up with Supabase Auth
         result = AuthService.sign_up(email, password, username)
@@ -144,9 +145,11 @@ def signup():
         session = result.get('session')
 
         # Create user profile in database
+        full_name = username
         if user:
             user_id = user.id
-            SupabaseDB.get_or_create_user(user_id, email, username or email.split('@')[0])
+            SupabaseDB.get_or_create_user(user_id, email, username)
+            full_name = SupabaseDB.get_user_display_name(user_id) or username
             
             # If psychologist, create psychologist profile
             if role == 'psychologist':
@@ -159,10 +162,10 @@ def signup():
                     # Use direct Supabase client insert with service key
                     insert_response = supabase.table("psychologist_profiles").insert({
                         "user_id": user_id,
-                        "full_name": username or email.split('@')[0],
+                        "full_name": username,
                         "specializations": spec_list,
                         "bio": bio,
-                        "license_number": license_number,
+                        "license_number": None,
                         "years_of_experience": None,
                         "languages_spoken": ["English"]
                     }).execute()
@@ -182,6 +185,7 @@ def signup():
             'message': 'Signup successful! Please check your email to verify.',
             'user_id': user.id if user else None,
             'email': email,
+            'full_name': full_name,
             'role': role,
             'access_token': session.access_token if session else None
         }), 201
@@ -226,8 +230,9 @@ def login_user():
         access_token = result.get('access_token')
         user_id = user.id if user else None
 
-        # Get user role
+        # Get user role and display name
         role = SupabaseDB.get_user_role(user_id) if user_id else 'user'
+        full_name = SupabaseDB.get_user_display_name(user_id) if user_id else ''
 
         print(f"✅ Login successful for {email} (role: {role}, user_id: {user_id})")
 
@@ -235,6 +240,7 @@ def login_user():
             'success': True,
             'user_id': user_id,
             'email': email,
+            'full_name': full_name,
             'role': role,
             'access_token': access_token,
             'refresh_token': session.refresh_token if session else None
@@ -251,19 +257,19 @@ def login_user():
 def user_profile():
     """Get or update user profile (including full_name)"""
     try:
-        # Get user ID from header
-        user_id = request.headers.get('X-User-ID')
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        
-        if not user_id or not token:
-            return jsonify({'error': 'Authentication required'}), 401
+        user_id, auth_error = require_authenticated_user(request.headers)
+        if auth_error:
+            return auth_error
         
         if request.method == 'GET':
             # Get user profile
             response = supabase.table('users').select('*').eq('id', user_id).single().execute()
             
             if response.data:
-                return jsonify(response.data), 200
+                data = dict(response.data)
+                if not (data.get('full_name') or '').strip():
+                    data['full_name'] = (data.get('username') or '').strip()
+                return jsonify(data), 200
             else:
                 return jsonify({'error': 'User not found'}), 404
                 
@@ -278,6 +284,7 @@ def user_profile():
             # Update user
             response = supabase.table('users').update({
                 'full_name': full_name,
+                'username': full_name,
                 'updated_at': datetime.utcnow().isoformat()
             }).eq('id', user_id).execute()
             
@@ -340,11 +347,14 @@ def verify_token():
         if not result['success']:
             return jsonify({'error': 'Invalid token'}), 401
 
+        user_id = extract_user_id_from_verify_result(result)
         user = result.get('user')
+        inner = getattr(user, 'user', None) if user else None
+        email = getattr(inner, 'email', None) if inner else getattr(user, 'email', None)
         return jsonify({
             'success': True,
-            'user_id': user.id if user else None,
-            'email': user.email if user else None
+            'user_id': user_id,
+            'email': email
         }), 200
 
     except Exception as e:
@@ -472,45 +482,6 @@ def weekly_summary():
         return jsonify({'error': 'Failed to retrieve weekly summary'}), 500
 
 
-@app.route('/api/chat-history', methods=['GET'])
-def get_chat_history():
-    """
-    Get chat history for authenticated user.
-    GET /api/chat-history?userId=uuid&limit=50
-    """
-    try:
-        user_id = request.args.get('userId')
-        limit = int(request.args.get('limit', 50))
-        
-        if not user_id:
-            return jsonify({'error': 'userId is required'}), 400
-        
-        # Get chat history from database
-        messages = SupabaseDB.get_chat_history(user_id, limit=limit)
-        
-        # Format messages for frontend
-        formatted_messages = [
-            {
-                'id': msg.get('id'),
-                'role': msg.get('role'),
-                'content': msg.get('content'),
-                'timestamp': msg.get('created_at'),
-                'mood': msg.get('mood_detected'),
-                'persona': msg.get('persona')
-            }
-            for msg in messages
-        ]
-        
-        return jsonify({
-            'messages': formatted_messages,
-            'count': len(formatted_messages)
-        }), 200
-    
-    except Exception as e:
-        print(f'Error in chat history endpoint: {str(e)}')
-        return jsonify({'error': 'Failed to retrieve chat history'}), 500
-
-
 @app.route('/api/chat-sessions', methods=['POST'])
 def create_chat_session():
     try:
@@ -612,12 +583,20 @@ def send_session_message(session_id):
     }
     """
     try:
+        # Validate session_id
+        if not session_id or session_id == 'null' or session_id == 'undefined':
+            return jsonify({'error': 'Invalid session ID. Please refresh the page.'}), 400
+            
         data = request.json
         user_message = data.get('message', '').strip()
         language = validate_language(data.get('language', 'en'))
         persona = validate_persona(data.get('persona', 'supportive_friend'))
         user_id = data.get('userId')
         message_role = data.get('role', 'user')  # 'user' or 'psychologist'
+        selected_mood = (data.get('selectedMood') or data.get('selected_mood') or '').strip().lower()
+        valid_chip_moods = ['happy', 'sad', 'anxious', 'angry', 'calm', 'neutral']
+        if selected_mood and selected_mood not in valid_chip_moods:
+            selected_mood = None
 
         if not user_id:
             return jsonify({'error': 'userId is required'}), 400
@@ -644,8 +623,8 @@ def send_session_message(session_id):
                 'message': 'Psychologist message sent'
             }), 200
 
-        # Extract sentiment
-        mood_detected = extract_sentiment(user_message)
+        # Detect mood from message (local keywords — no extra OpenAI call)
+        mood_detected = categorize_emotion(user_message)
 
         # Add user message to session
         SupabaseDB.add_session_message(session_id, user_id, 'user', user_message, persona, language, mood_detected)
@@ -656,8 +635,8 @@ def send_session_message(session_id):
         
         if session_check.data and session_check.data.get('has_psychologist'):
             print(f"👥 Session has psychologist - no AI response")
-            # Log mood entry
-            SupabaseDB.add_mood_entry(user_id, mood_detected, intensity=5)
+            if mood_detected and mood_detected != 'neutral':
+                SupabaseDB.add_mood_entry(user_id, mood_detected, intensity=5)
             
             return jsonify({
                 'response': None,  # No AI response when psychologist is present
@@ -672,27 +651,24 @@ def send_session_message(session_id):
             for msg in reversed(recent_messages[:-1])  # Skip the one we just added
         ]
 
-        # Get AI response
+        # Get AI response (use manually selected mood chip when provided)
         messages_for_api = conversation_context + [{'role': 'user', 'content': user_message}]
-        ai_response = get_chat_response(messages_for_api, persona, language)
+        mood_for_prompt = selected_mood or (mood_detected if mood_detected != 'neutral' else None)
+        ai_response = get_chat_response(
+            messages_for_api, persona, language, user_mood=mood_for_prompt
+        )
 
         # Add assistant message to session
         SupabaseDB.add_session_message(session_id, user_id, 'assistant', ai_response, persona, language)
 
-        # Get emotion details
-        emotion = categorize_emotion(user_message)
-        if language == 'mk':
-            emotion_note = get_emotion_description_mk(emotion)
-        else:
-            emotion_note = get_emotion_description(emotion)
-
-        # Log mood entry
-        SupabaseDB.add_mood_entry(user_id, mood_detected, intensity=5)
+        # Log mood entry when we have a concrete chip mood from the message
+        if mood_detected and mood_detected != 'neutral':
+            SupabaseDB.add_mood_entry(user_id, mood_detected, intensity=5)
 
         return jsonify({
             'response': ai_response,
             'mood_detected': mood_detected,
-            'emotion': emotion
+            'emotion': mood_detected,
         }), 200
 
     except Exception as e:
@@ -755,10 +731,10 @@ def end_user_psychologist_session(session_id):
     }
     """
     try:
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            return jsonify({'error': 'User ID required'}), 401
-        
+        user_id, auth_error = require_authenticated_user(request.headers)
+        if auth_error:
+            return auth_error
+
         data = request.json or {}
         rating = data.get('rating')
         feedback = data.get('feedback', '').strip()

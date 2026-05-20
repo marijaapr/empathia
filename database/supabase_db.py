@@ -13,21 +13,59 @@ class SupabaseDB:
     """Supabase database operations"""
     
     @staticmethod
+    def get_user_display_name(user_id: str) -> str:
+        """Resolve display name from users row (full_name preferred)."""
+        try:
+            response = supabase.table("users").select(
+                "full_name, username, email"
+            ).eq("id", user_id).execute()
+            if response.data:
+                row = response.data[0]
+                name = (row.get("full_name") or row.get("username") or "").strip()
+                if name:
+                    return name
+                email = row.get("email") or ""
+                if email and "@" in email:
+                    return email.split("@")[0]
+            return ""
+        except Exception as e:
+            print(f"Error in get_user_display_name: {e}")
+            return ""
+
+    @staticmethod
     def get_or_create_user(user_id: str, email: str, username: str = None):
         """Get or create user in public.users table"""
         try:
+            display_name = (username or "").strip() or email.split("@")[0]
             response = supabase.table("users").select("*").eq("id", user_id).execute()
             if response.data:
-                return response.data[0]
-            
+                row = response.data[0]
+                if username and not (row.get("full_name") or "").strip():
+                    try:
+                        supabase.table("users").update({
+                            "full_name": display_name,
+                            "username": display_name,
+                            "updated_at": datetime.utcnow().isoformat()
+                        }).eq("id", user_id).execute()
+                        row["full_name"] = display_name
+                        row["username"] = display_name
+                    except Exception as upd_err:
+                        print(f"Error updating user full_name: {upd_err}")
+                return row
+
             user_data = {
                 "id": user_id,
                 "email": email,
-                "username": username or email.split("@")[0],
+                "username": display_name,
+                "full_name": display_name,
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
             }
-            response = supabase.table("users").insert(user_data).execute()
+            try:
+                response = supabase.table("users").insert(user_data).execute()
+            except Exception:
+                user_data.pop("full_name", None)
+                response = supabase.table("users").insert(user_data).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             print(f"Error in get_or_create_user: {e}")

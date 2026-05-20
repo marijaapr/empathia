@@ -4,12 +4,15 @@ const CONFIG = {
     REFRESH_INTERVAL: 30000 // 30 seconds
 };
 
+const MOOD_CHIPS = ['happy', 'sad', 'anxious', 'angry', 'calm', 'neutral'];
+
 // State Management
 let state = {
     userId: null,
     currentSessionId: null,
     language: localStorage.getItem('language') || 'en',
     persona: localStorage.getItem('persona') || 'supportive_friend',
+    selectedMood: localStorage.getItem('selected_mood') || null,
     messages: [],
     isLoading: false,
     isPsychologistSession: localStorage.getItem('is_psychologist_chat') === 'true',
@@ -24,28 +27,61 @@ const elements = {
     sendButton: document.querySelector('.btn-send'),
     languageSelect: document.getElementById('language-select'),
     personaSelect: document.getElementById('persona-select'),
-    weeklyStats: document.getElementById('weeklyStats')
+    weeklyStats: document.getElementById('weeklyStats'),
+    moodStatus: document.getElementById('moodStatus'),
+    typingIndicator: document.getElementById('typingIndicator')
 };
+
+function setUserDisplayName(name) {
+    const display = (name || '').trim();
+    const el = document.getElementById('userDisplayName');
+    if (el && display) {
+        el.textContent = display;
+        localStorage.setItem('user_name', display);
+    }
+}
+
+async function loadUserDisplayName() {
+    const el = document.getElementById('userDisplayName');
+    if (!el) return;
+
+    const cached = localStorage.getItem('user_name');
+    if (cached) {
+        el.textContent = cached;
+    }
+
+    try {
+        const response = await apiFetch('/api/user/profile');
+        if (response.ok) {
+            const data = await response.json();
+            const name = (data.full_name || data.username || '').trim();
+            if (name) {
+                setUserDisplayName(name);
+            }
+        }
+    } catch (error) {
+        console.warn('Could not load user display name:', error);
+    }
+}
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
-    // Wait a bit for all DOM to be ready
-    setTimeout(() => {
+    setTimeout(async () => {
         initializeApp();
         setupEventListeners();
-        
-        // Check if this is a psychologist session
+        await loadUserDisplayName();
+
         const psychSessionId = localStorage.getItem('psychologist_session_id');
         if (psychSessionId && state.isPsychologistSession) {
             state.currentSessionId = psychSessionId;
             loadPsychologistSession(psychSessionId);
-            // Clear the flags after loading
             localStorage.removeItem('psychologist_session_id');
         } else {
             loadChatSessions();
         }
-        
+
         loadMoodStats();
+        restoreMoodSelection();
     }, 100);
 });
 
@@ -76,10 +112,7 @@ async function saveUserName(event) {
         localStorage.setItem('user_name', fullName);
         
         // Update display
-        const userEmailEl = document.getElementById('userEmail');
-        if (userEmailEl) {
-            userEmailEl.textContent = fullName;
-        }
+        setUserDisplayName(fullName);
         
         // Hide modal
         document.getElementById('nameSetupModal').style.display = 'none';
@@ -109,11 +142,18 @@ function initializeApp() {
         elements.personaSelect.value = state.persona;
     }
 
-    const displayName = localStorage.getItem('user_name') || localStorage.getItem('email') || 'User';
-    const userEmailEl = document.getElementById('userEmail');
-    if (userEmailEl) {
-        userEmailEl.textContent = displayName;
+    const cachedName = localStorage.getItem('user_name');
+    if (cachedName) {
+        const userDisplayEl = document.getElementById('userDisplayName');
+        if (userDisplayEl) {
+            userDisplayEl.textContent = cachedName;
+        }
     }
+
+    CustomSelect.init(elements.languageSelect);
+    CustomSelect.init(elements.personaSelect);
+    CustomSelect.setValue(elements.languageSelect, state.language);
+    CustomSelect.setValue(elements.personaSelect, state.persona);
 
     const role = localStorage.getItem('role');
 
@@ -123,7 +163,7 @@ function initializeApp() {
         if (navbarRight && !document.getElementById('backToDashboard')) {
             const backBtn = document.createElement('button');
             backBtn.id = 'backToDashboard';
-            backBtn.className = 'logout-btn';
+            backBtn.className = 'btn-primary btn-logout';
             backBtn.textContent = '← Back to Dashboard';
             backBtn.onclick = () => {
                 localStorage.removeItem('is_psychologist_chat');
@@ -188,6 +228,13 @@ async function sendMessage(event) {
     // If no session exists, create one first
     if (!state.currentSessionId) {
         await createDefaultSession();
+        
+        // Check again if session was created
+        if (!state.currentSessionId) {
+            console.error('Failed to create session');
+            alert('Unable to create chat session. Please refresh the page.');
+            return;
+        }
     }
 
     // Disable input
@@ -206,7 +253,8 @@ async function sendMessage(event) {
                 message: content,
                 language: state.language,
                 persona: state.persona,
-                userId: state.userId
+                userId: state.userId,
+                selectedMood: state.selectedMood || undefined
             })
         });
 
@@ -223,13 +271,14 @@ async function sendMessage(event) {
             console.log('👥 Psychologist is in this chat - waiting for human response');
         }
 
-        // Log mood if detected
-        if (data.mood_detected && data.mood_detected !== 'neutral') {
+        // Update mood chip if message implies a mood (no extra chat spam)
+        if (data.mood_detected && MOOD_CHIPS.includes(data.mood_detected) && data.mood_detected !== 'neutral') {
+            setMoodSelection(data.mood_detected, { persist: true, showStatus: true });
             logMoodSilent(data.mood_detected);
         }
 
-        // Check for high-urgency emotions and show psychologist recommendations
-        checkEmotionAndShowRecommendations(content);
+        // Non-blocking crisis / student support check (after reply is visible)
+        void checkEmotionAndShowRecommendations(content);
 
     } catch (error) {
         console.error('Error:', error);
@@ -244,13 +293,37 @@ async function sendMessage(event) {
     }
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Turn plain text into safe HTML with paragraph blocks and line breaks.
+ */
+function formatMessageHtml(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) {
+        return '<p class="message-paragraph"></p>';
+    }
+    const safe = escapeHtml(trimmed);
+    const blocks = safe.split(/\n\s*\n+/);
+    return blocks
+        .map((block) => {
+            const inner = block.replace(/\n/g, '<br>');
+            return `<p class="message-paragraph">${inner}</p>`;
+        })
+        .join('');
+}
+
 function addMessageToUI(role, content) {
     const messageEl = document.createElement('div');
     messageEl.className = `message ${role}`;
 
     const contentEl = document.createElement('div');
-    contentEl.className = 'message-content';
-    contentEl.textContent = content;
+    contentEl.className = 'message-content message-body';
+    contentEl.innerHTML = formatMessageHtml(content);
 
     messageEl.appendChild(contentEl);
     elements.messagesContainer.appendChild(messageEl);
@@ -264,10 +337,66 @@ function setLoading(loading) {
     if (elements.sendButton) {
         elements.sendButton.disabled = loading;
     }
+    if (elements.messageInput) {
+        elements.messageInput.disabled = loading;
+    }
+    const indicator = elements.typingIndicator;
+    if (indicator && elements.messagesContainer) {
+        elements.messagesContainer.appendChild(indicator);
+        indicator.classList.toggle('hidden', !loading);
+        indicator.setAttribute('aria-hidden', loading ? 'false' : 'true');
+        if (loading) {
+            elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
+        }
+    }
+    const label = indicator?.querySelector('.chat-typing-label');
+    if (label) {
+        label.textContent = state.language === 'mk'
+            ? 'Емпатија размислува…'
+            : 'Empathia is thinking…';
+    }
+}
+
+function capitalizeMood(mood) {
+    if (!mood) return '';
+    return mood.charAt(0).toUpperCase() + mood.slice(1);
+}
+
+function setMoodSelection(mood, options = {}) {
+    const { persist = true, showStatus = true } = options;
+    if (!mood || !MOOD_CHIPS.includes(mood)) return;
+
+    state.selectedMood = mood;
+    if (persist) {
+        localStorage.setItem('selected_mood', mood);
+    }
+
+    document.querySelectorAll('.mood-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.mood === mood);
+    });
+
+    if (showStatus && elements.moodStatus) {
+        const labels = {
+            en: `Selected: ${capitalizeMood(mood)}`,
+            mk: `Избрано: ${capitalizeMood(mood)}`
+        };
+        elements.moodStatus.textContent = labels[state.language] || labels.en;
+    }
+}
+
+function restoreMoodSelection() {
+    const saved = state.selectedMood || localStorage.getItem('selected_mood');
+    if (saved && MOOD_CHIPS.includes(saved)) {
+        setMoodSelection(saved, { persist: false, showStatus: true });
+    }
 }
 
 // Mood Functions
 async function logMood(mood) {
+    if (!MOOD_CHIPS.includes(mood)) return;
+
+    setMoodSelection(mood, { persist: true, showStatus: true });
+
     try {
         const response = await apiFetch(`${CONFIG.API_BASE}/mood`, {
             method: 'POST',
@@ -279,15 +408,6 @@ async function logMood(mood) {
         });
 
         if (response.ok) {
-            const data = await response.json();
-            // Show system message
-            const messages = {
-                'en': `Great! I've logged your mood as "${mood}". ${data.message || ''}`,
-                'mk': `Одлично! Го забележав твоето расположение како "${mood}". ${data.message || ''}`
-            };
-            addMessageToUI('system', messages[state.language] || messages['en']);
-
-            // Refresh stats
             setTimeout(loadMoodStats, 500);
         }
     } catch (error) {
@@ -296,6 +416,8 @@ async function logMood(mood) {
 }
 
 async function logMoodSilent(mood) {
+    if (!mood || !MOOD_CHIPS.includes(mood) || mood === 'neutral') return;
+
     try {
         await apiFetch(`${CONFIG.API_BASE}/mood`, {
             method: 'POST',
@@ -306,7 +428,6 @@ async function logMoodSilent(mood) {
             })
         });
 
-        // Refresh stats silently
         loadMoodStats();
     } catch (error) {
         console.error('Error logging mood:', error);
@@ -352,35 +473,6 @@ function logout() {
         });
 }
 
-// Chat History Functions
-function loadChatHistory() {
-    const userId = localStorage.getItem('user_id');
-    if (!userId) {
-        console.error('User ID not found');
-        return;
-    }
-
-    apiFetch(`${CONFIG.API_BASE}/chat-history?userId=${userId}&limit=50`)
-        .then(response => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-        })
-        .then(data => {
-            if (data.messages && elements.messagesContainer) {
-                // Clear existing messages
-                elements.messagesContainer.innerHTML = '';
-                
-                // Add all historical messages
-                data.messages.forEach(msg => {
-                    addMessageToUI(msg.role, msg.content);
-                });
-                
-                console.log(`Loaded ${data.count} messages from history`);
-            }
-        })
-        .catch(error => console.error('Error loading chat history:', error));
-}
-
 function loadChatSessions(skipAutoSelect = false) {
     const userId = localStorage.getItem('user_id');
     const accessToken = localStorage.getItem('access_token');
@@ -408,7 +500,7 @@ function loadChatSessions(skipAutoSelect = false) {
         sessions.forEach(session => {
             console.log('💬 Chat session:', session);
             const date = new Date(session.created_at).toLocaleDateString();
-            const label = session.has_psychologist ? ' (with Psychologist)' : '';
+            const label = session.has_psychologist ? ' (with student)' : '';
             
             html += `
                 <div class="chat-session-item ${session.has_psychologist ? 'psychologist-session' : ''}">
@@ -498,17 +590,19 @@ function createNewChat() {
                 // Clear messages and show welcome message
                 elements.messagesContainer.innerHTML = `
                     <div class="message assistant">
-                        <p>New chat created! How can I help you today?</p>
+                        <div class="message-content message-body">
+                            <p class="message-paragraph">New chat created! How can I help you today?</p>
+                        </div>
                     </div>
                 `;
                 
                 // Load sessions but don't auto-select (skip redirect to first chat)
                 loadChatSessions(true);
                 
-                // Start the message refresh for the new session
+                // Start the message refresh for the new session (2 seconds for faster updates)
                 state.messageRefreshInterval = setInterval(() => {
                     loadSessionMessages(data.session.id, true);
-                }, 3000);
+                }, 2000);
                 
                 // Focus on input
                 elements.messageInput?.focus();
@@ -546,16 +640,26 @@ function loadSessionMessages(sessionId, silent = false) {
                     data.messages.forEach(msg => {
                         let role = msg.role;
                         let content = msg.content;
+                        let formattedContent;
                         
+                        // Handle different message roles
                         if (role === 'psychologist') {
                             role = 'assistant';
-                            content = `${psychologistName}: ${content}`;
+                            // Format: <strong>Name:</strong> message (with HTML allowed)
+                            formattedContent = `<strong>${psychologistName}:</strong> ${formatMessageHtml(content)}`;
+                        } else if (role === 'system') {
+                            // System messages like "Psychologist joined"
+                            role = 'system';
+                            formattedContent = formatMessageHtml(content);
+                        } else {
+                            // Regular messages (user, assistant)
+                            formattedContent = formatMessageHtml(content);
                         }
                         
-                        newHTML += `<div class="message ${role}"><p>${content}</p></div>`;
+                        newHTML += `<div class="message ${role}"><div class="message-content message-body">${formattedContent}</div></div>`;
                     });
                 } else {
-                    newHTML = '<div class="message assistant"><p>No messages in this chat yet. Start a conversation!</p></div>';
+                    newHTML = '<div class="message assistant"><div class="message-content message-body"><p class="message-paragraph">No messages in this chat yet. Start a conversation!</p></div></div>';
                 }
                 
                 // Only update if content has changed (prevents blinking)
@@ -626,11 +730,11 @@ function loadSession(sessionId) {
     // Load messages initially
     loadSessionMessages(sessionId);
 
-    // Set up auto-refresh every 3 seconds for live updates
+    // Set up auto-refresh every 2 seconds for live updates (faster for real-time feel)
     state.messageRefreshInterval = setInterval(() => {
         loadSessionMessages(sessionId, true);
         checkPsychologistStatus(); // Also check for psychologist status updates
-    }, 3000);
+    }, 2000);
 }
 
 function deleteSession(sessionId) {
@@ -681,17 +785,16 @@ async function checkEmotionAndShowRecommendations(userMessage) {
         }
 
         const result = await response.json();
-        const { emotion, urgency_level } = result;
+        const { emotion, urgency_level, suggest_student_support } = result;
         
-        console.log(`📊 Analysis result - Emotion: ${emotion}, Urgency: ${urgency_level}`);
+        console.log(`📊 Analysis result - Emotion: ${emotion}, Urgency: ${urgency_level}, Suggest: ${suggest_student_support}`);
 
-        // Show psychologist recommendations for high-urgency emotions
         if (window.psychologistRecommendations) {
-            if (urgency_level === 'high') {
-                console.log('🎯 High urgency detected - showing psychologist recommendations');
+            if (suggest_student_support) {
+                console.log('🎯 Suggesting psychology student support');
                 window.psychologistRecommendations.showRecommendations(emotion, urgency_level);
             } else {
-                console.log(`⚠️ Urgency level is ${urgency_level}, not showing recommendations`);
+                console.log(`ℹ️ No auto-suggest (urgency=${urgency_level})`);
             }
         } else {
             console.warn('⚠️ psychologistRecommendations not initialized');
