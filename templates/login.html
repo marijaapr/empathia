@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Empathia - Login</title>
+
     <style>
         * {
             margin: 0;
@@ -11,155 +12,141 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --primary: #7c6cf2;
+            --primary-dark: #6858e8;
+            --secondary: #a58bff;
+            --bg: #f6f5ff;
+            --card: rgba(255, 255, 255, 0.72);
+            --border: rgba(255, 255, 255, 0.8);
+            --text: #1f1f2e;
+            --muted: #7b7b93;
+            --danger: #dc2626;
+            --success: #16a34a;
+            --shadow: 0 10px 40px rgba(124, 108, 242, 0.12);
+        }
+
+        html,
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 450px;
-            padding: 40px;
+            height: 100%;
+            overflow: hidden;
         }
 
-        .header {
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #f7f5ff 0%, #f2f0ff 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            color: var(--text);
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(124, 108, 242, 0.18), transparent 70%);
+            top: -200px;
+            right: -150px;
+            border-radius: 50%;
+        }
+
+        body::after {
+            content: "";
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(165, 139, 255, 0.15), transparent 70%);
+            bottom: -180px;
+            left: -120px;
+            border-radius: 50%;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 470px;
+            padding: 24px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .form-card {
+            background: var(--card);
+            backdrop-filter: blur(25px);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 42px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .form-card::before {
+            content: "";
+            position: absolute;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(124, 108, 242, 0.14), transparent 70%);
+            top: -100px;
+            right: -80px;
+            border-radius: 50%;
+        }
+
+        .form-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .auth-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 34px;
         }
 
-        .header h1 {
-            color: #667eea;
-            font-size: 28px;
+        .logo {
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
         }
 
-        .header p {
-            color: #999;
+        .header-subtitle {
+            color: var(--muted);
             font-size: 14px;
+            font-weight: 500;
         }
 
         .tabs {
             display: flex;
-            gap: 10px;
+            background: rgba(255, 255, 255, 0.65);
+            border-radius: 14px;
+            padding: 5px;
             margin-bottom: 30px;
-            border-bottom: 2px solid #eee;
+            border: 1px solid rgba(255,255,255,0.6);
         }
 
         .tab-btn {
             flex: 1;
-            padding: 12px;
-            background: none;
             border: none;
-            color: #999;
+            background: transparent;
+            padding: 13px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--muted);
             cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
+            transition: 0.3s ease;
         }
 
         .tab-btn.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-            font-size: 14px;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        button[type="submit"] {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        button[type="submit"]:hover {
-            transform: translateY(-2px);
-        }
-
-        button[type="submit"]:active {
-            transform: translateY(0);
-        }
-
-        .error {
-            color: #e74c3c;
-            font-size: 13px;
-            margin-top: 5px;
-            display: none;
-        }
-
-        .error.show {
-            display: block;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .spinner {
-            border: 3px solid #eee;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .success {
-            color: #27ae60;
-            font-size: 13px;
-            margin-top: 5px;
-            display: none;
-        }
-
-        .success.show {
-            display: block;
+            box-shadow: 0 6px 18px rgba(124, 108, 242, 0.25);
         }
 
         .tab-content {
@@ -169,180 +156,309 @@
         .tab-content.active {
             display: block;
         }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #55556d;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            border: 1.5px solid rgba(124, 108, 242, 0.12);
+            background: rgba(255, 255, 255, 0.82);
+            border-radius: 14px;
+            padding: 14px 16px;
+            font-size: 14px;
+            color: var(--text);
+            transition: all 0.25s ease;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(124, 108, 242, 0.12);
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            color: #a0a0b8;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            border: none;
+            border-radius: 14px;
+            padding: 15px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            box-shadow: 0 10px 25px rgba(124, 108, 242, 0.22);
+        }
+
+        button[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px rgba(124, 108, 242, 0.28);
+        }
+
+        button[type="submit"]:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error,
+        .success {
+            display: none;
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .error.show,
+        .success.show {
+            display: block;
+        }
+
+        .error {
+            background: rgba(220, 38, 38, 0.08);
+            border: 1px solid rgba(220, 38, 38, 0.12);
+            color: var(--danger);
+        }
+
+        .success {
+            background: rgba(22, 163, 74, 0.08);
+            border: 1px solid rgba(22, 163, 74, 0.12);
+            color: var(--success);
+        }
+
+        #psychologistFields {
+            margin-top: 12px;
+            padding-top: 8px;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                overflow-y: auto;
+                padding: 20px 0;
+            }
+
+            .login-container {
+                padding: 18px;
+            }
+
+            .form-card {
+                padding: 28px 22px;
+                border-radius: 22px;
+            }
+
+            .logo {
+                font-size: 28px;
+            }
+
+            input,
+            select,
+            textarea,
+            button[type="submit"] {
+                font-size: 16px;
+            }
+        }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🌟 Empathia</h1>
-            <p>Your Emotional Support Companion</p>
+
+<div class="login-container">
+    <div class="form-card">
+        <div class="form-content">
+
+            <div class="auth-header">
+                <div class="logo">Empathia</div>
+                <p class="header-subtitle">
+                    AI Emotional Support Platform
+                </p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('login', event)">
+                    Login
+                </button>
+
+                <button class="tab-btn" onclick="switchTab('signup', event)">
+                    Sign Up
+                </button>
+            </div>
+
+            <!-- LOGIN -->
+            <form id="loginForm" class="tab-content active" onsubmit="handleLogin(event)">
+
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input
+                        type="email"
+                        id="login-email"
+                        required
+                        placeholder="your@email.com"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input
+                        type="password"
+                        id="login-password"
+                        required
+                        placeholder="Enter your password"
+                    />
+                </div>
+
+                <div class="error" id="loginError"></div>
+                <div class="success" id="loginSuccess"></div>
+
+                <button type="submit" id="loginBtn">
+                    Login
+                </button>
+
+            </form>
+
+            <!-- SIGNUP -->
+            <form id="signupForm" class="tab-content" onsubmit="handleSignup(event)">
+
+                <div class="form-group">
+                    <label for="signup-role">Account Type</label>
+
+                    <select id="signup-role" required>
+                        <option value="user">Regular User</option>
+                        <option value="psychologist">Psychologist</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+
+                    <input
+                        type="email"
+                        id="signup-email"
+                        required
+                        placeholder="your@email.com"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="signup-username">Full Name</label>
+
+                    <input
+                        type="text"
+                        id="signup-username"
+                        placeholder="Your full name"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+
+                    <input
+                        type="password"
+                        id="signup-password"
+                        required
+                        placeholder="Create a secure password"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="signup-password-confirm">Confirm Password</label>
+
+                    <input
+                        type="password"
+                        id="signup-password-confirm"
+                        required
+                        placeholder="Repeat password"
+                    />
+                </div>
+
+                <!-- Psychologist Fields -->
+                <div id="psychologistFields" style="display:none;">
+
+                    <div class="form-group">
+                        <label for="signup-license">
+                            License Number <span style="color: var(--danger);">*</span>
+                        </label>
+
+                        <input
+                            type="text"
+                            id="signup-license"
+                            placeholder="Professional license number"
+                            data-psychologist-required="true"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-bio">
+                            Professional Bio <span style="color: var(--danger);">*</span>
+                        </label>
+
+                        <textarea
+                            id="signup-bio"
+                            placeholder="Describe your experience and expertise"
+                            data-psychologist-required="true"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signup-specializations">
+                            Specializations <span style="color: var(--danger);">*</span>
+                        </label>
+
+                        <input
+                            type="text"
+                            id="signup-specializations"
+                            placeholder="e.g., Anxiety, Depression, Trauma (comma-separated)"
+                            data-psychologist-required="true"
+                        />
+                    </div>
+
+                </div>
+
+                <div class="error" id="signupError"></div>
+                <div class="success" id="signupSuccess"></div>
+
+                <button type="submit" id="signupBtn">
+                    Create Account
+                </button>
+
+            </form>
+
         </div>
-
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('login')">Login</button>
-            <button class="tab-btn" onclick="switchTab('signup')">Sign Up</button>
-        </div>
-
-        <!-- Login Form -->
-        <form id="loginForm" class="tab-content active" onsubmit="handleLogin(event)">
-            <div class="form-group">
-                <label for="login-email">Email</label>
-                <input type="email" id="login-email" required placeholder="your@email.com">
-            </div>
-
-            <div class="form-group">
-                <label for="login-password">Password</label>
-                <input type="password" id="login-password" required placeholder="••••••••">
-            </div>
-
-            <div class="error" id="loginError"></div>
-            <div class="success" id="loginSuccess"></div>
-
-            <button type="submit" id="loginBtn">Login</button>
-        </form>
-
-        <!-- Signup Form -->
-        <form id="signupForm" class="tab-content" onsubmit="handleSignup(event)">
-            <div class="form-group">
-                <label for="signup-email">Email</label>
-                <input type="email" id="signup-email" required placeholder="your@email.com">
-            </div>
-
-            <div class="form-group">
-                <label for="signup-username">Username</label>
-                <input type="text" id="signup-username" placeholder="Your name">
-            </div>
-
-            <div class="form-group">
-                <label for="signup-password">Password</label>
-                <input type="password" id="signup-password" required placeholder="••••••••">
-            </div>
-
-            <div class="form-group">
-                <label for="signup-password-confirm">Confirm Password</label>
-                <input type="password" id="signup-password-confirm" required placeholder="••••••••">
-            </div>
-
-            <div class="error" id="signupError"></div>
-            <div class="success" id="signupSuccess"></div>
-
-            <button type="submit" id="signupBtn">Sign Up</button>
-        </form>
     </div>
+</div>
 
-    <script>
-        function switchTab(tab) {
-            // Update tabs
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+<script src="/static/api.js"></script>
+<script src="/static/login.js"></script>
 
-            // Update forms
-            document.querySelectorAll('.tab-content').forEach(form => form.classList.remove('active'));
-            if (tab === 'login') {
-                document.getElementById('loginForm').classList.add('active');
-            } else {
-                document.getElementById('signupForm').classList.add('active');
-            }
-
-            // Clear errors
-            document.getElementById('loginError').classList.remove('show');
-            document.getElementById('signupError').classList.remove('show');
-        }
-
-        async function handleLogin(event) {
-            event.preventDefault();
-            
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            const errorEl = document.getElementById('loginError');
-            const btn = document.getElementById('loginBtn');
-
-            errorEl.classList.remove('show');
-            btn.disabled = true;
-            btn.textContent = 'Logging in...';
-
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Login failed');
-                }
-
-                // Store tokens
-                localStorage.setItem('access_token', data.access_token);
-                localStorage.setItem('refresh_token', data.refresh_token);
-                localStorage.setItem('user_id', data.user_id);
-
-                // Redirect to chat
-                window.location.href = '/chat';
-            } catch (error) {
-                errorEl.textContent = error.message;
-                errorEl.classList.add('show');
-                btn.disabled = false;
-                btn.textContent = 'Login';
-            }
-        }
-
-        async function handleSignup(event) {
-            event.preventDefault();
-            
-            const email = document.getElementById('signup-email').value;
-            const username = document.getElementById('signup-username').value;
-            const password = document.getElementById('signup-password').value;
-            const passwordConfirm = document.getElementById('signup-password-confirm').value;
-            const errorEl = document.getElementById('signupError');
-            const successEl = document.getElementById('signupSuccess');
-            const btn = document.getElementById('signupBtn');
-
-            errorEl.classList.remove('show');
-            successEl.classList.remove('show');
-
-            // Validate passwords match
-            if (password !== passwordConfirm) {
-                errorEl.textContent = 'Passwords do not match';
-                errorEl.classList.add('show');
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = 'Creating account...';
-
-            try {
-                const response = await fetch('/api/auth/signup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, username, password })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Signup failed');
-                }
-
-                successEl.textContent = data.message + ' You can now login.';
-                successEl.classList.add('show');
-
-                // Clear form
-                document.getElementById('signupForm').reset();
-
-                // Switch to login after 2 seconds
-                setTimeout(() => {
-                    document.querySelector('[onclick="switchTab(\'login\')"]').click();
-                }, 2000);
-            } catch (error) {
-                errorEl.textContent = error.message;
-                errorEl.classList.add('show');
-                btn.disabled = false;
-                btn.textContent = 'Sign Up';
-            }
-        }
-    </script>
 </body>
 </html>

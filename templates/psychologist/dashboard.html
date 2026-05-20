@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Psychologist Dashboard - Empathia</title>
+    <link rel="stylesheet" href="/static/psychologist/style.css">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="navbar-left">
+                <div class="logo">Empathia</div>
+            </div>
+            <div class="navbar-center">
+                <span class="dashboard-title">Psychologist Dashboard</span>
+            </div>
+            <div class="navbar-right">
+                <div class="online-status-toggle">
+                    <input 
+                        type="checkbox" 
+                        id="onlineToggle" 
+                        class="toggle-checkbox"
+                    >
+                    <label for="onlineToggle" class="toggle-label">
+                        <span class="status-indicator"></span>
+                        <span id="statusText">Offline</span>
+                    </label>
+                </div>
+                <div class="notification-bell">
+                    <button class="bell-button" onclick="openNotifications()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <span class="notification-count" id="notificationCount" style="display: none;">0</span>
+                    </button>
+                </div>
+                <button onclick="logout()" class="btn-logout">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Main Layout -->
+        <div class="dashboard-layout">
+            <!-- Sidebar -->
+            <aside class="dashboard-sidebar">
+                <nav class="sidebar-menu">
+                    <a href="#overview" class="menu-item active" onclick="showSection('overview')">
+                        <span class="menu-icon">Overview</span>
+                    </a>
+                    <a href="#requests" class="menu-item" onclick="showSection('requests')">
+                        <span class="menu-icon">Requests</span>
+                        <span class="badge" id="requestsBadge" style="display: none;"></span>
+                    </a>
+                    <a href="#active-chats" class="menu-item" onclick="showSection('active-chats')">
+                        <span class="menu-icon">Active Chats</span>
+                    </a>
+                    <a href="#sessions" class="menu-item" onclick="showSection('sessions')">
+                        <span class="menu-icon">Completed Sessions</span>
+                    </a>
+                    <a href="#ratings" class="menu-item" onclick="showSection('ratings')">
+                        <span class="menu-icon">Ratings</span>
+                    </a>
+                    <a href="#profile" class="menu-item" onclick="showSection('profile')">
+                        <span class="menu-icon">Profile Settings</span>
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="dashboard-content">
+                <!-- Overview Section -->
+                <section id="overview" class="content-section">
+                    <h1>Dashboard Overview</h1>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="pendingRequestsCount">0</div>
+                            <div class="stat-label">Pending Requests</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="activeSessionsCount">0</div>
+                            <div class="stat-label">Active Sessions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="averageRating">0</div>
+                            <div class="stat-label">Average Rating</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalSessions">0</div>
+                            <div class="stat-label">Total Sessions</div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <h3>Quick Actions</h3>
+                        <div class="actions-grid">
+                            <button class="action-card" onclick="showSection('requests')">
+                                <h4>View Pending Requests</h4>
+                                <p>Review and respond to client requests</p>
+                            </button>
+                            <button class="action-card" onclick="showSection('active-chats')">
+                                <h4>Active Sessions</h4>
+                                <p>Continue conversations with clients</p>
+                            </button>
+                            <button class="action-card" onclick="showSection('profile')">
+                                <h4>Update Profile</h4>
+                                <p>Manage your professional information</p>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Requests Section -->
+                <section id="requests" class="content-section" style="display: none;">
+                    <h1>Incoming Chat Requests</h1>
+                    
+                    <div class="requests-list" id="requestsList">
+                        <div class="loading">Loading requests...</div>
+                    </div>
+                </section>
+
+                <!-- Active Chats Section -->
+                <section id="active-chats" class="content-section" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h1>Active Chat Sessions</h1>
+                        <button class="btn-action btn-primary" onclick="refreshActiveSessions()" title="Refresh active sessions">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="chats-grid" id="activeChatsList">
+                        <div class="loading">Loading active chats...</div>
+                    </div>
+                </section>
+
+                <!-- Completed Sessions Section -->
+                <section id="sessions" class="content-section" style="display: none;">
+                    <h1>Completed Sessions</h1>
+                    
+                    <div class="sessions-list" id="sessionsList">
+                        <div class="loading">Loading sessions...</div>
+                    </div>
+                </section>
+
+                <!-- Ratings Section -->
+                <section id="ratings" class="content-section" style="display: none;">
+                    <h1>Reviews & Ratings</h1>
+                    
+                    <div class="ratings-summary">
+                        <div class="rating-display">
+                            <div class="big-rating" id="bigRating">0</div>
+                            <div class="rating-stars" id="ratingStars"></div>
+                            <div class="rating-count" id="ratingCount">0 reviews</div>
+                        </div>
+                    </div>
+
+                    <div class="reviews-list" id="reviewsList">
+                        <div class="loading">Loading reviews...</div>
+                    </div>
+                </section>
+
+                <!-- Profile Section -->
+                <section id="profile" class="content-section" style="display: none;">
+                    <h1>Profile Settings</h1>
+                    
+                    <form id="profileForm" class="profile-form">
+                        <!-- Profile Picture -->
+                        <div class="profile-picture-section">
+                            <div class="picture-container">
+                                <img id="profilePicture" src="https://via.placeholder.com/120?text=Profile" alt="Profile Picture" class="profile-pic">
+                                <div class="upload-overlay">
+                                    <button type="button" class="btn-upload-pic" onclick="document.getElementById('profileImageInput').click()">
+                                        Change Photo
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        id="profileImageInput" 
+                                        accept="image/*" 
+                                        style="display: none;"
+                                        onchange="handleProfileImageChange(event)"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Professional Information -->
+                        <div class="form-section">
+                            <h3>Professional Information</h3>
+                            
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input type="text" id="profileFullName" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>License Number</label>
+                                <input type="text" id="profileLicense" readonly style="background-color: #f0f0f0;">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Bio</label>
+                                <textarea id="profileBio" rows="4" placeholder="Describe your experience and approach..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Specializations</label>
+                                <input type="text" id="profileSpecializations" placeholder="e.g., Anxiety, Depression, Trauma">
+                            </div>
+                        </div>
+
+                        <!-- Availability & Rates -->
+                        <div class="form-section">
+                            <h3>Availability & Rates</h3>
+                            
+                            <div class="form-group">
+                                <label>Session Rate (USD)</label>
+                                <div class="input-with-prefix">
+                                    <span>$</span>
+                                    <input type="number" id="profileSessionRate" min="10" max="500">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Average Response Time (minutes)</label>
+                                <input type="number" id="profileResponseTime" min="5" max="1440">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Languages Spoken</label>
+                                <input type="text" id="profileLanguages" placeholder="e.g., English, Spanish, French">
+                            </div>
+                        </div>
+
+                        <!-- Status Section -->
+                        <div class="form-section">
+                            <h3>Status</h3>
+                            
+                            <div class="form-group status-group">
+                                <label>Current Status</label>
+                                <div class="status-info">
+                                    <div class="status-badge-info">
+                                        <span class="status-indicator-large" id="statusIndicatorProfile"></span>
+                                        <span id="statusTextProfile">Offline</span>
+                                    </div>
+                                    <p class="status-hint">Use the toggle in the top navigation to change your availability status</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-submit">Save Changes</button>
+                        <button type="button" class="btn-cancel" onclick="resetProfileForm()">Cancel</button>
+                    </form>
+                </section>
+
+                <!-- Chat View Section -->
+                <section id="chat-view" class="content-section" style="display: none;">
+                    <div class="chat-view-container">
+                        <div class="chat-header-bar">
+                            <button class="btn-back" onclick="closeChatInDashboard()">← Back to Active Chats</button>
+                            <h1 id="chatTitle">Chat Session</h1>
+                        </div>
+                        
+                        <div id="chatView" class="chat-view-content">
+                            <div class="chat-messages-area" id="chatMessagesInDashboard">
+                                <div class="loading">Loading messages...</div>
+                            </div>
+                            
+                            <form class="chat-input-area" onsubmit="sendMessageInDashboard(event)">
+                                <input 
+                                    type="text" 
+                                    id="chatInputInDashboard" 
+                                    class="chat-input-field" 
+                                    placeholder="Type your message..."
+                                    autocomplete="off"
+                                >
+                                <button type="submit" class="btn-send-message">Send</button>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Notification Modal -->
+        <div id="notificationModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Notifications</h2>
+                    <button class="close-button" onclick="closeNotifications()">&times;</button>
+                </div>
+                <div class="notifications-list" id="notificationsList"></div>
+            </div>
+        </div>
+
+        <!-- Request Detail Modal -->
+        <div id="requestModal" class="modal" style="display: none;">
+            <div class="modal-content request-modal-content">
+                <div class="modal-header">
+                    <h2>New Chat Request</h2>
+                    <button class="close-button" onclick="closeRequestModal()">&times;</button>
+                </div>
+                <div class="request-detail" id="requestDetail">
+                    <div class="loading">Loading request details...</div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-accept" onclick="acceptRequest()">✓ Accept Request</button>
+                    <button class="btn-reject" onclick="showRejectReason()">✗ Decline</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Modal -->
+        <div id="chatModal" class="modal" style="display: none;">
+            <div class="modal-content chat-modal">
+                <div class="modal-header">
+                    <h2 id="chatClientName"></h2>
+                    <button class="close-button" onclick="closeChat()">&times;</button>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <form class="chat-input-form" onsubmit="sendChatMessage(event)">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="Type your message..."
+                    >
+                    <button type="submit" class="btn-send">Send</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/api.js"></script>
+    <script src="/static/psychologist/dashboard.js"></script>
+</body>
+</html>

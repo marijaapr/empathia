@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Empathia Chat</title>
+    <title>Empathia - Chat</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/psychologist-recommendations.css">
 </head>
 <body>
     <!-- Auth Check -->
@@ -18,105 +19,227 @@
         checkAuth();
     </script>
 
-    <div id="app">
-        <!-- Header with Logout -->
-        <header class="header">
-            <div class="header-content">
-                <h1>🌟 Empathia</h1>
-                <div class="user-menu">
-                    <span id="userEmail"></span>
-                    <button onclick="logout()" class="logout-btn">Logout</button>
-                </div>
+    <div id="app" class="app-container">
+        <!-- Top Navbar -->
+        <header class="navbar">
+            <div class="navbar-left">
+                <div class="logo">Empathia</div>
+            </div>
+            <div class="navbar-right">
+                <span class="user-email" id="userEmail"></span>
+                <button onclick="logout()" class="logout-btn">Logout</button>
             </div>
         </header>
 
-        <main class="main-content">
+        <div class="main-layout">
             <!-- Left Sidebar -->
             <aside class="sidebar">
-                <div class="sidebar-header">
-                    <h2>Settings</h2>
+                <!-- Chats Section -->
+                <div class="sidebar-section">
+                    <div class="section-header">
+                        <h3>Chats</h3>
+                        <button onclick="createNewChat()" class="btn-new-chat">+ New</button>
+                    </div>
+                    <div class="chat-sessions-list" id="chatSessionsList">
+                        <p class="placeholder">Loading chats...</p>
+                    </div>
                 </div>
 
-                <div class="settings-group">
-                    <label>Language</label>
-                    <select id="language-select" onchange="updateLanguage()">
-                        <option value="en">English</option>
-                        <option value="mk">Македонски</option>
-                    </select>
-                </div>
-
-                <div class="settings-group">
-                    <label>Persona</label>
-                    <select id="persona-select">
-                        <option value="supportive_friend">Supportive Friend</option>
-                        <option value="wise_counselor">Wise Counselor</option>
-                        <option value="compassionate_mentor">Compassionate Mentor</option>
-                    </select>
-                </div>
-
-                <button onclick="loadChatHistory()" class="btn-secondary">View Chat History</button>
-                <button onclick="loadMoodHistory()" class="btn-secondary">Mood History</button>
+                <!-- Settings Section (Moved to chat area) -->
+                <div class="sidebar-divider"></div>
 
                 <div class="sidebar-footer">
-                    <p><small>Empathia v1.0</small></p>
+                    <button onclick="loadChatHistory()" class="btn-view-history">View History</button>
+                    <p>Empathia v1.0</p>
                 </div>
             </aside>
 
-            <!-- Chat Area -->
-            <section class="chat-container">
+            <!-- Main Chat Area -->
+            <div class="chat-main">
+                <!-- Settings Panel (Fixed at top) -->
+                <div class="chat-settings-panel">
+                    <div class="settings-card language-card">
+                        <div class="settings-label">Language</div>
+                        <select id="language-select" class="settings-select">
+                            <option value="en">English</option>
+                            <option value="mk">Македонски</option>
+                        </select>
+                    </div>
+                    <div class="settings-card persona-card">
+                        <div class="settings-label">Persona</div>
+                        <select id="persona-select" class="settings-select">
+                            <option value="supportive_friend">Supportive Friend</option>
+                            <option value="reflective_coach">Reflective Coach</option>
+                            <option value="neutral_assistant">Neutral Assistant</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Messages Container -->
                 <div class="chat-messages" id="chatMessages">
-                    <div class="message assistant">
-                        <p>Hello! I'm Empathia, your emotional support companion. How are you feeling today?</p>
+                    <div class="welcome-message">
+                        <p>Hello! I'm Empathia, your emotional support companion.</p>
+                        <p>How are you feeling today?</p>
                     </div>
                 </div>
 
-                <div class="mood-tracker">
-                    <label>How are you feeling?</label>
+                <!-- Mood Tracker -->
+                <div class="mood-tracker-section">
+                    <label class="mood-label">How are you feeling?</label>
                     <div class="mood-buttons">
-                        <button onclick="logMood('happy')" class="mood-btn mood-happy">😊 Happy</button>
-                        <button onclick="logMood('sad')" class="mood-btn mood-sad">😢 Sad</button>
-                        <button onclick="logMood('anxious')" class="mood-btn mood-anxious">😰 Anxious</button>
-                        <button onclick="logMood('angry')" class="mood-btn mood-angry">😠 Angry</button>
-                        <button onclick="logMood('calm')" class="mood-btn mood-calm">😌 Calm</button>
+                        <button onclick="logMood('happy')" class="mood-btn mood-happy" title="Happy">Happy</button>
+                        <button onclick="logMood('sad')" class="mood-btn mood-sad" title="Sad">Sad</button>
+                        <button onclick="logMood('anxious')" class="mood-btn mood-anxious" title="Anxious">Anxious</button>
+                        <button onclick="logMood('angry')" class="mood-btn mood-angry" title="Angry">Angry</button>
+                        <button onclick="logMood('calm')" class="mood-btn mood-calm" title="Calm">Calm</button>
                     </div>
                 </div>
 
-                <form class="chat-form" onsubmit="sendMessage(event)">
-                    <input type="text" id="messageInput" placeholder="Type your message..." required>
+                <!-- Chat Input -->
+                <form class="chat-input-form" onsubmit="sendMessage(event)">
+                    <input 
+                        type="text" 
+                        id="messageInput" 
+                        class="chat-input" 
+                        placeholder="Type your message here..."
+                        required
+                    >
                     <button type="submit" class="btn-send">Send</button>
                 </form>
+
+                <!-- Feature Footer -->
+                <div class="feature-footer">
+                    <span>24/7 AI Support</span>
+                    <span>Licensed Psychologists</span>
+                    <span>100% Private & Secure</span>
+                </div>
 
                 <!-- Stats -->
                 <div class="stats-container">
                     <div id="weeklyStats"></div>
                 </div>
-            </section>
-        </main>
+            </div>
+        </div>
     </div>
 
-    <script src="/static/script.js"></script>
-    <script>
-        // Display logged-in user
-        document.getElementById('userEmail').textContent = localStorage.getItem('userEmail') || 'User';
+    <!-- Name Setup Modal -->
+    <div id="nameSetupModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;">
+            <h2 style="margin-bottom: 10px;">Welcome to Empathia!</h2>
+            <p style="margin-bottom: 20px; color: #666;">Please enter your name to continue</p>
+            <form id="nameSetupForm" onsubmit="saveUserName(event)">
+                <input 
+                    type="text" 
+                    id="fullNameInput" 
+                    placeholder="Enter your full name"
+                    required
+                    minlength="2"
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 20px;"
+                >
+                <button type="submit" class="btn-send" style="width: 100%; padding: 12px;">
+                    Continue
+                </button>
+            </form>
+        </div>
+    </div>
 
-        function logout() {
-            const token = localStorage.getItem('access_token');
+    <!-- End Session & Rating Modal -->
+    <div id="endSessionModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 style="margin-bottom: 10px;">End Session with Psychologist</h2>
+            <p style="margin-bottom: 20px; color: #666;">How was your experience?</p>
             
-            fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            }).then(() => {
-                localStorage.clear();
-                window.location.href = '/login';
-            });
-        }
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 600;">Rate your experience:</label>
+                <div id="ratingStars" style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+                    <span class="rating-star" data-rating="1" onclick="selectRating(1)">☆</span>
+                    <span class="rating-star" data-rating="2" onclick="selectRating(2)">☆</span>
+                    <span class="rating-star" data-rating="3" onclick="selectRating(3)">☆</span>
+                    <span class="rating-star" data-rating="4" onclick="selectRating(4)">☆</span>
+                    <span class="rating-star" data-rating="5" onclick="selectRating(5)">☆</span>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 600;">Feedback (optional):</label>
+                <textarea 
+                    id="sessionFeedback" 
+                    placeholder="Share your thoughts about this session..."
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-height: 80px; resize: vertical;"
+                ></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeEndSessionModal()" class="btn-send" style="flex: 1; background: #ccc; padding: 12px;">
+                    Cancel
+                </button>
+                <button onclick="submitEndSession()" class="btn-send" style="flex: 1; padding: 12px;">
+                    End Session
+                </button>
+            </div>
+        </div>
+    </div>
 
-        function updateLanguage() {
-            const language = document.getElementById('language-select').value;
-            localStorage.setItem('language', language);
+    <style>
+        .rating-star {
+            font-size: 40px;
+            cursor: pointer;
+            color: #ddd;
+            transition: color 0.2s, transform 0.2s;
+            user-select: none;
         }
-    </script>
+        
+        .rating-star:hover {
+            transform: scale(1.2);
+        }
+        
+        .rating-star.selected {
+            color: #ffc107;
+        }
+        
+        .rating-star.hover {
+            color: #ffc107;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .end-session-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .end-session-btn:hover {
+            background: #c82333;
+        }
+    </style>
+
+    <script src="/static/api.js"></script>
+    <script src="/static/script.js"></script>
+    <script src="/static/psychologist-recommendations.js"></script>
 </body>
 </html>
