@@ -83,7 +83,7 @@ function toggleOnlineStatus(isOnline) {
     const btn = document.getElementById('onlineToggle');
     btn.disabled = true;
     
-    fetch('/api/psychologist/online-status', {
+    apiFetch('/api/psychologist/online-status', {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -114,7 +114,7 @@ function toggleOnlineStatus(isOnline) {
 }
 
 function loadOnlineStatus() {
-    fetch('/api/psychologist/profile', {
+    apiFetch('/api/psychologist/profile', {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId
@@ -176,7 +176,7 @@ function updateProfileStatusIndicator(isOnline) {
 // ============================================================================
 
 function loadPsychologistProfile() {
-    fetch('/api/psychologist/profile', {
+    apiFetch('/api/psychologist/profile', {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId
@@ -264,7 +264,7 @@ function loadDashboardData() {
 function loadPendingRequests() {
     // Add cache-busting timestamp to force fresh data
     const timestamp = new Date().getTime();
-    return fetch(`/api/psychologist/requests/pending?_t=${timestamp}`, {
+    return apiFetch(`/api/psychologist/requests/pending?_t=${timestamp}`, {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId,
@@ -326,7 +326,7 @@ function displayRequests(requests) {
 function loadActiveSessions() {
     // Add cache-busting timestamp
     const timestamp = new Date().getTime();
-    return fetch(`/api/psychologist/sessions/psychologist/active?_=${timestamp}`, {
+    return apiFetch(`/api/psychologist/sessions/psychologist/active?_=${timestamp}`, {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId,
@@ -414,7 +414,7 @@ function displayActiveSessions(sessions) {
 }
 
 function loadCompletedSessions() {
-    return fetch('/api/psychologist/sessions/completed', {
+    return apiFetch('/api/psychologist/sessions/completed', {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId
@@ -467,7 +467,7 @@ function displayCompletedSessions(sessions) {
 }
 
 function loadRatings() {
-    return fetch('/api/psychologist/ratings', {
+    return apiFetch('/api/psychologist/ratings', {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId
@@ -553,7 +553,7 @@ function showSection(sectionId) {
 
 function openRequestDetail(requestId) {
     // Fetch request details
-    fetch(`/api/psychologist/requests/${requestId}`, {
+    apiFetch(`/api/psychologist/requests/${requestId}`, {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId
@@ -619,7 +619,7 @@ function acceptRequest() {
     const originalText = acceptBtn.textContent;
     acceptBtn.textContent = '⏳ Accepting...';
     
-    fetch(`/api/psychologist/request/${requestId}/accept`, {
+    apiFetch(`/api/psychologist/request/${requestId}/accept`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
@@ -757,7 +757,7 @@ function loadChatMessagesInDashboard(sessionId, silent = false) {
     console.log('📬 loadChatMessagesInDashboard called with sessionId:', sessionId, '(type:', typeof sessionId + ')');
     
     // Load from regular chat API since psychologist joined the user's chat
-    fetch(`/api/chat-sessions/${sessionId}/messages`, {
+    apiFetch(`/api/chat-sessions/${sessionId}/messages`, {
         headers: {
             'Content-Type': 'application/json'
         }
@@ -869,7 +869,7 @@ function sendMessageInDashboard(event) {
     input.disabled = true;
     
     // Send to regular chat API with psychologist role
-    fetch(`/api/chat-sessions/${sessionId}/chat`, {
+    apiFetch(`/api/chat-sessions/${sessionId}/chat`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -930,7 +930,7 @@ function endPsychologistSession(psychSessionId) {
     
     console.log('🔚 Ending psychologist session:', psychSessionId);
     
-    fetch(`/api/psychologist/sessions/${psychSessionId}/end`, {
+    apiFetch(`/api/psychologist/sessions/${psychSessionId}/end`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
@@ -975,7 +975,7 @@ function closeNotifications() {
 }
 
 function loadNotifications() {
-    fetch('/api/psychologist/notifications', {
+    apiFetch('/api/psychologist/notifications', {
         headers: {
             'Authorization': `Bearer ${currentAccessToken}`,
             'X-User-ID': currentUserId
@@ -1068,7 +1068,7 @@ if (profileForm) {
         
         console.log('📤 Sending profile update...');
         
-        fetch('/api/psychologist/profile', {
+        apiFetch('/api/psychologist/profile', {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${currentAccessToken}`,
@@ -1169,7 +1169,7 @@ function formatDuration(minutes) {
 
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
-        fetch('/api/auth/logout', {
+        apiFetch('/api/auth/logout', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${currentAccessToken}`
@@ -1192,7 +1192,7 @@ function showRejectReason() {
     if (reason) {
         const requestId = document.getElementById('requestModal').dataset.requestId;
         
-        fetch(`/api/psychologist/request/${requestId}/reject`, {
+        apiFetch(`/api/psychologist/request/${requestId}/reject`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

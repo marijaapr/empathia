@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # Load environment variables FIRST, from the app directory
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect
 from supabase import create_client, Client
 
 # Import services
@@ -24,8 +24,6 @@ from services.safety_service import (
     is_content_safe, get_safety_warning, sanitize_input,
     validate_persona, validate_language
 )
-from services.emotion_analyzer import EmotionDetector
-from services.psychologist.service import PsychologistService
 from routes.psychologist_routes import psychologist_bp
 
 # Initialize Flask app
@@ -67,9 +65,9 @@ def chat_page():
 
 
 @app.route('/psychologist/register')
-def psychologist_register():
-    """Serve the psychologist registration page."""
-    return render_template('psychologist/register.html')
+def psychologist_register_redirect():
+    """Legacy URL — psychologist onboarding is via /login signup."""
+    return redirect('/login')
 
 
 @app.route('/psychologist/dashboard')
@@ -354,90 +352,6 @@ def verify_token():
         return jsonify({'error': 'Token verification failed'}), 500
 
 
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    """
-    Chat endpoint for handling user messages.
-    POST /api/chat
-    {
-        "message": "user message",
-        "language": "en",
-        "persona": "supportive_friend",
-        "userId": "unique_user_id"
-    }
-    """
-    try:
-        data = request.json
-        user_message = data.get('message', '').strip()
-        language = validate_language(data.get('language', 'en'))
-        persona = validate_persona(data.get('persona', 'supportive_friend'))
-        user_id_str = data.get('userId', 'default_user')
-
-        # Validate input
-        is_safe, safety_reason = is_content_safe(user_message)
-        if not is_safe:
-            warning_msg = get_safety_warning(safety_reason, language)
-            return jsonify({
-                'response': warning_msg,
-                'mood_detected': None,
-                'error': True
-            }), 400
-
-        # Sanitize input
-        user_message = sanitize_input(user_message)
-
-        # Get or create user (in Supabase we use the user_id_str directly)
-        user_id = user_id_str
-
-        # Extract sentiment
-        mood_detected = extract_sentiment(user_message)
-
-        # Add user message to database
-        SupabaseDB.add_message(user_id, 'user', user_message, persona, language, mood_detected)
-
-        # Get recent conversation context
-        recent_messages = SupabaseDB.get_chat_history(user_id, limit=10)
-        conversation_context = [
-            {'role': 'user' if msg['role'] == 'user' else 'assistant', 'content': msg['content']}
-            for msg in reversed(recent_messages[1:])  # Skip the one we just added
-        ]
-
-        # Get AI response
-        messages_for_api = conversation_context + [{'role': 'user', 'content': user_message}]
-        ai_response = get_chat_response(messages_for_api, persona, language)
-
-        # Add assistant message to database
-        SupabaseDB.add_message(user_id, 'assistant', ai_response, persona, language)
-
-        # Get emotion details
-        emotion = categorize_emotion(user_message)
-        if language == 'mk':
-            emotion_note = get_emotion_description_mk(emotion)
-        else:
-            emotion_note = get_emotion_description(emotion)
-
-        # Log mood entry silently
-        SupabaseDB.add_mood_entry(user_id, mood_detected, intensity=5)
-
-        return jsonify({
-            'response': ai_response,
-            'mood_detected': mood_detected,
-            'emotion': emotion
-        }), 200
-
-    except Exception as e:
-        print(f'Error in chat endpoint: {str(e)}')
-        error_messages = {
-            'en': 'An error occurred processing your message. Please try again.',
-            'mk': 'Грешка се случи при обработката на вашата порака. Ве молиме обидитесе повторно.'
-        }
-        language = validate_language(request.json.get('language', 'en')) if request.json else 'en'
-        return jsonify({
-            'response': error_messages.get(language, error_messages['en']),
-            'error': True
-        }), 500
-
-
 @app.route('/api/mood', methods=['POST'])
 def log_mood():
     """
@@ -528,23 +442,23 @@ def weekly_summary():
         # Get or create user (use user_id_str directly for Supabase)
         user_id = user_id_str
 
-        # Get weekly summary
+        # Get weekly summary (dict keyed by mood name)
         summary_data = SupabaseDB.get_weekly_mood_summary(user_id)
 
-        # Format response
         summary = [
             {
-                'mood': item['mood'],
-                'count': item['count'],
-                'avg_intensity': item['avg_intensity'] or 5
+                'mood': mood,
+                'count': data['count'],
+                'avg_intensity': round(data['avg_intensity'], 1)
             }
-            for item in summary_data
+            for mood, data in summary_data.items()
         ]
+        summary.sort(key=lambda x: x['count'], reverse=True)
 
         # Generate insight text
         if summary:
-            dominant_mood = max(summary, key=lambda x: x['count'])
-            insight = f"This week, your most frequent mood was {dominant_mood['mood']}."
+            dominant_mood = summary[0]
+            insight = f"This week, your most frequent mood was {dominant_mood['mood']} ({dominant_mood['count']} times)."
         else:
             insight = "Start tracking your mood to see weekly insights!"
 
@@ -828,93 +742,6 @@ def reflection_prompt():
     except Exception as e:
         print(f'Error in reflection prompt endpoint: {str(e)}')
         return jsonify({'error': 'Failed to generate reflection prompt'}), 500
-
-
-@app.route('/api/psychologist/analyze-emotion', methods=['POST'])
-def analyze_emotion():
-    """Analyze message for emotion and urgency level - NO AUTH REQUIRED"""
-    try:
-        data = request.json
-        message = data.get('message', '')
-        
-        if not message:
-            return jsonify({'error': 'Message required'}), 400
-        
-        # Analyze emotion
-        emotion = categorize_emotion(message)
-        
-        # Detect urgency - comprehensive keyword matching
-        high_urgency_keywords = [
-            'suicide', 'suicidal', 'kill myself', 'kill myself', 'hurt myself', 'harm myself', 
-            'end it', 'die', 'death', 'dead', 'panic attack', 'crisis', 'emergency', 'urgent',
-            'self harm', 'self-harm', 'cutting', 'depressed', 'depression', 'hopeless',
-            'worthless', 'can\'t take it', 'can\'t go on', 'no point', 'give up', 'overwhelmed',
-            'anxious', 'anxiety', 'scared', 'afraid', 'terrified', 'urgent help needed'
-        ]
-        
-        medium_urgency_keywords = [
-            'sad', 'worried', 'stressed', 'stressed out', 'nervous', 'sick', 'ill'
-        ]
-        
-        message_lower = message.lower()
-        urgency_level = 'low'
-        
-        # Check high urgency first
-        for keyword in high_urgency_keywords:
-            if keyword in message_lower:
-                urgency_level = 'high'
-                break
-        
-        # Check medium urgency if not high
-        if urgency_level == 'low':
-            for keyword in medium_urgency_keywords:
-                if keyword in message_lower:
-                    urgency_level = 'medium'
-                    break
-        
-        print(f"📊 Emotion analysis - Message: {message[:50]}... | Emotion: {emotion} | Urgency: {urgency_level}")
-        
-        return jsonify({
-            'emotion': emotion,
-            'urgency_level': urgency_level
-        }), 200
-    except Exception as e:
-        print(f'❌ Error in analyze-emotion endpoint: {str(e)}')
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': 'Failed to analyze emotion'}), 500
-
-
-@app.route('/api/psychologist/recommended', methods=['GET'])
-def get_recommended_psychologists():
-    """Get list of recommended psychologists"""
-    try:
-        # Get psychologists from database
-        response = supabase.table("psychologist_profiles").select(
-            "id, user_id, full_name, bio, profile_image_url, specializations, languages_spoken, is_online, session_rate_usd"
-        ).eq("is_online", True).limit(5).execute()
-        
-        psychologists = response.data if response.data else []
-        
-        # Calculate rating for each psychologist
-        for psych in psychologists:
-            rating_response = supabase.table("psychologist_ratings").select(
-                "rating"
-            ).eq("psychologist_id", psych['id']).execute()
-            
-            ratings = rating_response.data if rating_response.data else []
-            if ratings:
-                avg_rating = sum(r['rating'] for r in ratings) / len(ratings)
-                psych['average_rating'] = avg_rating
-                psych['review_count'] = len(ratings)
-            else:
-                psych['average_rating'] = 5.0
-                psych['review_count'] = 0
-        
-        return jsonify(psychologists), 200
-    except Exception as e:
-        print(f'Error in recommended psychologists endpoint: {str(e)}')
-        return jsonify({'error': 'Failed to get psychologists'}), 500
 
 
 @app.route('/api/chat-sessions/<session_id>/end-psychologist-session', methods=['POST'])

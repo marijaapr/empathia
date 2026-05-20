@@ -60,7 +60,7 @@
                 <div class="chat-settings-panel">
                     <div class="settings-card language-card">
                         <div class="settings-label">Language</div>
-                        <select id="language-select" onchange="updateLanguage()" class="settings-select">
+                        <select id="language-select" class="settings-select">
                             <option value="en">English</option>
                             <option value="mk">Македонски</option>
                         </select>
@@ -238,30 +238,8 @@
         }
     </style>
 
+    <script src="/static/api.js"></script>
     <script src="/static/script.js"></script>
-    <script>
-        // Display logged-in user
-        document.getElementById('userEmail').textContent = localStorage.getItem('email') || 'User';
-
-        function logout() {
-            const token = localStorage.getItem('access_token');
-            
-            fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            }).then(() => {
-                localStorage.clear();
-                window.location.href = '/login';
-            });
-        }
-
-        function updateLanguage() {
-            const language = document.getElementById('language-select').value;
-            localStorage.setItem('language', language);
-        }
-    </script>
     <script src="/static/psychologist-recommendations.js"></script>
 </body>
 </html>

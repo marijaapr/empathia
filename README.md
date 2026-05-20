@@ -44,12 +44,10 @@ pip install -r requirements.txt
 ```
 
 ### 4. Setup Supabase
-**[📖 Read INTEGRATION_GUIDE.md for complete setup instructions]**
 
-Quick summary:
 1. Create account at https://supabase.com
 2. Create new project
-3. Run SQL queries from `SUPABASE_SETUP.md` (creates tables with authentication)
+3. Run SQL in the Supabase SQL Editor (see `run_migration.py` for chat session tables)
 4. Copy API credentials to `.env`
 
 ### 5. Configure environment variables
@@ -70,7 +68,7 @@ FLASK_DEBUG=True
 
 ### 6. Run the application
 ```bash
-python app_supabase.py
+python app.py
 ```
 
 Server starts at: **http://localhost:5001/login**
@@ -81,19 +79,18 @@ Server starts at: **http://localhost:5001/login**
 
 | Document | Description |
 |----------|-------------|
-| **[INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md)** | ⭐ Start here! Complete walkthrough with API examples |
-| **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)** | Database schema and SQL setup queries |
+| **[README.md](./README.md)** | Setup, API overview, and project structure |
 | **[.env.example](./.env.example)** | Environment variables template |
 
 ## 🏗️ Project Structure
 
 ```
 empathia/
-├── app_supabase.py              # ⭐ Main Flask app with Supabase integration
+├── app.py                       # Flask application (single entry point)
 ├── requirements.txt             # Python dependencies
 ├── .env.example                 # Environment template
-├── INTEGRATION_GUIDE.md        # Complete integration docs
-├── SUPABASE_SETUP.md           # Database setup guide
+├── routes/
+│   └── psychologist_routes.py  # Psychologist API blueprint
 ├── database/
 │   └── supabase_db.py          # Supabase database operations
 ├── services/
@@ -103,12 +100,16 @@ empathia/
 │   ├── reflection_service.py   # Reflection prompts
 │   └── safety_service.py       # Content safety
 ├── templates/
-│   ├── login.html              # Login/Sign up (NEW!)
-│   ├── chat.html               # Chat interface (NEW!)
-│   └── index.html              # Old version
+│   ├── landing.html            # Landing page
+│   ├── login.html              # Login / sign up
+│   ├── chat.html               # Chat interface
+│   └── psychologist/           # Psychologist dashboard (signup via /login)
 └── static/
-    ├── script.js               # Frontend logic
-    └── style.css               # Styling
+    ├── api.js                  # Shared apiFetch() helper
+    ├── login.js                # Login & signup page logic
+    ├── script.js               # Chat UI logic
+    ├── style.css               # Main styling
+    └── psychologist/           # Dashboard JS/CSS
 ```
 
 ## 🔌 API Endpoints
@@ -119,9 +120,10 @@ empathia/
 - `POST /api/auth/logout` - Logout user  
 - `POST /api/auth/refresh` - Refresh access token
 
-### Chat (Protected - requires auth token)
-- `POST /api/chat` - Send message & get AI response
-- `GET /api/chat-history` - Get past conversations
+### Chat
+- `POST /api/chat-sessions/<id>/chat` - Send message in a session
+- `GET /api/chat-sessions` - List user chat sessions
+- `GET /api/chat-history` - Legacy global message history
 
 ### Mood (Protected - requires auth token)
 - `POST /api/mood` - Log mood entry
@@ -259,7 +261,7 @@ kill -9 <PID>
 
 ## 📞 Support
 
-1. **Check Documentation**: Read INTEGRATION_GUIDE.md first
+1. **Check Documentation**: Read README.md setup section first
 2. **Check Errors**: Look at terminal output and browser console
 3. **Test Endpoints**: Use curl or Postman to test API
 4. **Review Logs**: Check Supabase dashboard for table contents

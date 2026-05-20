@@ -31,7 +31,6 @@ const elements = {
 document.addEventListener('DOMContentLoaded', () => {
     // Wait a bit for all DOM to be ready
     setTimeout(() => {
-        checkUserName(); // Check if user has set their name first
         initializeApp();
         setupEventListeners();
         
@@ -50,53 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 });
 
-// Check if user has set their name
-async function checkUserName() {
-    // TEMPORARILY DISABLED - Database migration needed
-    // The full_name column needs to be added to users table first
-    // Run database/add_user_profiles.sql in Supabase SQL Editor
-    console.log('Name check disabled - database migration needed');
-    return;
-    
-    const userId = localStorage.getItem('user_id');
-    const token = localStorage.getItem('access_token');
-    
-    if (!userId || !token) return;
-    
-    try {
-        const response = await fetch(`/api/user/profile`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-User-ID': userId
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (!data.full_name || data.full_name === 'User') {
-            // Show name setup modal
-            document.getElementById('nameSetupModal').style.display = 'flex';
-        } else {
-            // Store name in localStorage for display
-            localStorage.setItem('user_name', data.full_name);
-            // Update display
-            const userEmailEl = document.getElementById('userEmail');
-            if (userEmailEl) {
-                userEmailEl.textContent = data.full_name;
-            }
-        }
-    } catch (error) {
-        console.error('Error checking user name:', error);
-    }
-}
-
-// Save user name
+// Save user name (name-setup modal; enable when profile migration is ready)
 async function saveUserName(event) {
     event.preventDefault();
     
     const fullName = document.getElementById('fullNameInput').value.trim();
-    const userId = localStorage.getItem('user_id');
-    const token = localStorage.getItem('access_token');
     
     if (!fullName || fullName.length < 2) {
         alert('Please enter a valid name (at least 2 characters)');
@@ -104,13 +61,8 @@ async function saveUserName(event) {
     }
     
     try {
-        const response = await fetch(`/api/user/profile`, {
+        const response = await apiFetch(`/api/user/profile`, {
             method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-User-ID': userId,
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({ full_name: fullName })
         });
         
@@ -141,27 +93,29 @@ async function saveUserName(event) {
 
 
 function initializeApp() {
-    // Check if user is authenticated
     const token = localStorage.getItem('access_token');
-    if (!token) {
+    const userId = localStorage.getItem('user_id');
+    if (!token || !userId) {
         window.location.href = '/login';
         return;
     }
 
-    // Set initial language and persona
-    elements.languageSelect.value = state.language;
-    elements.personaSelect.value = state.persona;
+    state.userId = userId;
 
-    // Use authenticated user ID from localStorage
-    state.userId = localStorage.getItem('user_id') || getOrCreateUserId();
-
-    // Display user email
-    const email = localStorage.getItem('email');
-    const role = localStorage.getItem('role');
-    const userEmailEl = document.getElementById('userEmail');
-    if (userEmailEl && email) {
-        userEmailEl.textContent = email;
+    if (elements.languageSelect) {
+        elements.languageSelect.value = state.language;
     }
+    if (elements.personaSelect) {
+        elements.personaSelect.value = state.persona;
+    }
+
+    const displayName = localStorage.getItem('user_name') || localStorage.getItem('email') || 'User';
+    const userEmailEl = document.getElementById('userEmail');
+    if (userEmailEl) {
+        userEmailEl.textContent = displayName;
+    }
+
+    const role = localStorage.getItem('role');
 
     // Add back to dashboard button for psychologists in psychologist sessions
     if (state.isPsychologistSession && role === 'psychologist') {
@@ -173,7 +127,7 @@ function initializeApp() {
             backBtn.textContent = '← Back to Dashboard';
             backBtn.onclick = () => {
                 localStorage.removeItem('is_psychologist_chat');
-                window.location.href = '/psychologist/dashboard.html';
+                window.location.href = '/psychologist/dashboard';
             };
             navbarRight.insertBefore(backBtn, navbarRight.firstChild);
         }
@@ -220,16 +174,6 @@ function setupEventListeners() {
     }
 }
 
-// User Management
-function getOrCreateUserId() {
-    let userId = sessionStorage.getItem('userId');
-    if (!userId) {
-        userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        sessionStorage.setItem('userId', userId);
-    }
-    return userId;
-}
-
 // Message Functions
 async function sendMessage(event) {
     if (event) {
@@ -256,11 +200,8 @@ async function sendMessage(event) {
     try {
         // Send to session API
         const endpoint = `${CONFIG.API_BASE}/chat-sessions/${state.currentSessionId}/chat`;
-        const response = await fetch(endpoint, {
+        const response = await apiFetch(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({
                 message: content,
                 language: state.language,
@@ -328,11 +269,8 @@ function setLoading(loading) {
 // Mood Functions
 async function logMood(mood) {
     try {
-        const response = await fetch(`${CONFIG.API_BASE}/mood`, {
+        const response = await apiFetch(`${CONFIG.API_BASE}/mood`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({
                 mood: mood,
                 userId: state.userId,
@@ -359,11 +297,8 @@ async function logMood(mood) {
 
 async function logMoodSilent(mood) {
     try {
-        await fetch(`${CONFIG.API_BASE}/mood`, {
+        await apiFetch(`${CONFIG.API_BASE}/mood`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({
                 mood: mood,
                 userId: state.userId,
@@ -380,100 +315,41 @@ async function logMoodSilent(mood) {
 
 // Stats Functions
 async function loadMoodStats() {
+    if (!state.userId || !elements.weeklyStats) return;
+
     try {
-        // Get mood history
-        const historyResponse = await fetch(`${CONFIG.API_BASE}/mood-history?userId=${state.userId}`);
-        if (historyResponse.ok) {
-            const historyData = await historyResponse.json();
-            displayMoodHistory(historyData.entries);
+        const summaryResponse = await apiFetch(
+            `${CONFIG.API_BASE}/weekly-summary?userId=${state.userId}`
+        );
+        if (!summaryResponse.ok) return;
+
+        const data = await summaryResponse.json();
+        if (!data.summary || data.summary.length === 0) {
+            elements.weeklyStats.innerHTML = '<p class="stats-empty">No mood data this week yet</p>';
+            return;
         }
 
-        // Get weekly summary
-        const summaryResponse = await fetch(`${CONFIG.API_BASE}/weekly-summary?userId=${state.userId}`);
-        if (summaryResponse.ok) {
-            const summaryData = await summaryResponse.json();
-            displayWeeklySummary(summaryData.summary);
+        let statsHtml = '<h3>Weekly Summary</h3>';
+        data.summary.forEach(item => {
+            statsHtml += `<p>${item.mood}: ${item.count} times</p>`;
+        });
+        if (data.insight) {
+            statsHtml += `<p><i>${data.insight}</i></p>`;
         }
+        elements.weeklyStats.innerHTML = statsHtml;
     } catch (error) {
         console.error('Error loading mood stats:', error);
     }
 }
 
-function displayMoodHistory(entries) {
-    if (!entries || entries.length === 0) {
-        elements.moodHistory.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">No mood history yet</p>';
-        return;
-    }
-
-    elements.moodHistory.innerHTML = entries.slice(0, 7).map(entry => `
-        <div class="mood-item">
-            <div class="mood-item-label">${formatDate(entry.date)}</div>
-            <div class="mood-item-value">${entry.mood}</div>
-            <div class="mood-item-label">${entry.count} ${entry.count === 1 ? 'entry' : 'entries'}</div>
-        </div>
-    `).join('');
-}
-
-function displayWeeklySummary(summary) {
-    if (!summary || summary.length === 0) {
-        elements.weeklySummary.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">No weekly data</p>';
-        return;
-    }
-
-    const moodEmojis = {
-        'happy': '😊',
-        'sad': '😢',
-        'anxious': '😰',
-        'angry': '😠',
-        'calm': '😌',
-        'positive': '😊',
-        'negative': '😢',
-        'neutral': '😐'
-    };
-
-    elements.weeklySummary.innerHTML = summary.map(item => `
-        <div class="summary-item">
-            <div class="summary-item-label">${moodEmojis[item.mood] || '💭'} ${item.mood}</div>
-            <div class="summary-item-value">${item.count}</div>
-            <div class="summary-item-label">avg: ${item.avg_intensity.toFixed(1)}</div>
-        </div>
-    `).join('');
-}
-
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (dateString === today.toISOString().split('T')[0]) {
-        return 'Today';
-    } else if (dateString === yesterday.toISOString().split('T')[0]) {
-        return 'Yesterday';
-    }
-
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 // Logout function
 function logout() {
-    const token = localStorage.getItem('access_token');
-    
-    fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        }
-    }).then(() => {
-        localStorage.clear();
-        window.location.href = '/login';
-    }).catch(error => {
-        console.error('Logout error:', error);
-        // Clear storage and redirect anyway
-        localStorage.clear();
-        window.location.href = '/login';
-    });
+    apiFetch('/api/auth/logout', { method: 'POST' })
+        .catch(error => console.error('Logout error:', error))
+        .finally(() => {
+            localStorage.clear();
+            window.location.href = '/login';
+        });
 }
 
 // Chat History Functions
@@ -484,7 +360,7 @@ function loadChatHistory() {
         return;
     }
 
-    fetch(`${CONFIG.API_BASE}/chat-history?userId=${userId}&limit=50`)
+    apiFetch(`${CONFIG.API_BASE}/chat-history?userId=${userId}&limit=50`)
         .then(response => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.json();
@@ -505,32 +381,6 @@ function loadChatHistory() {
         .catch(error => console.error('Error loading chat history:', error));
 }
 
-function loadMoodHistory() {
-    alert('Mood history feature coming soon!');
-}
-
-function loadMoodStats() {
-    // Load mood stats from API
-    const userId = localStorage.getItem('user_id');
-    if (!userId) return;
-    
-    fetch(`/api/weekly-summary?userId=${userId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (elements.weeklyStats && data.summary) {
-                let statsHtml = '<h3>Weekly Summary</h3>';
-                data.summary.forEach(item => {
-                    statsHtml += `<p>${item.mood}: ${item.count} times</p>`;
-                });
-                if (data.insight) {
-                    statsHtml += `<p><i>${data.insight}</i></p>`;
-                }
-                elements.weeklyStats.innerHTML = statsHtml;
-            }
-        })
-        .catch(error => console.error('Error loading stats:', error));
-}
-
 function loadChatSessions(skipAutoSelect = false) {
     const userId = localStorage.getItem('user_id');
     const accessToken = localStorage.getItem('access_token');
@@ -538,7 +388,7 @@ function loadChatSessions(skipAutoSelect = false) {
 
     // Load both regular chat sessions and psychologist sessions
     Promise.all([
-        fetch(`${CONFIG.API_BASE}/chat-sessions?userId=${userId}`).then(r => r.json())
+        apiFetch(`${CONFIG.API_BASE}/chat-sessions?userId=${userId}`).then(r => r.json())
     ])
     .then(([chatData]) => {
         console.log('📊 Chat data:', chatData);
@@ -603,9 +453,8 @@ async function createDefaultSession() {
     if (!userId) return;
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE}/chat-sessions`, {
+        const response = await apiFetch(`${CONFIG.API_BASE}/chat-sessions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 userId, 
                 title: `Chat on ${new Date().toLocaleDateString()}`
@@ -630,9 +479,8 @@ function createNewChat() {
     const title = prompt('Enter chat name (optional):', `Chat on ${new Date().toLocaleDateString()}`);
     if (title === null) return;
 
-    fetch(`${CONFIG.API_BASE}/chat-sessions`, {
+    apiFetch(`${CONFIG.API_BASE}/chat-sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, title })
     })
         .then(response => response.json())
@@ -671,7 +519,7 @@ function createNewChat() {
 
 // Helper function to load messages for a specific session
 function loadSessionMessages(sessionId, silent = false) {
-    fetch(`${CONFIG.API_BASE}/chat-sessions/${sessionId}/messages?limit=50`)
+    apiFetch(`${CONFIG.API_BASE}/chat-sessions/${sessionId}/messages?limit=50`)
         .then(response => response.json())
         .then(data => {
             if (elements.messagesContainer && state.currentSessionId === sessionId) {
@@ -745,7 +593,7 @@ function loadSession(sessionId) {
     
     // Function to check and update end session button
     const checkPsychologistStatus = () => {
-        fetch(`${CONFIG.API_BASE}/chat-sessions?userId=${userId}`)
+        apiFetch(`${CONFIG.API_BASE}/chat-sessions?userId=${userId}`)
             .then(response => response.json())
             .then(data => {
                 console.log('🔍 Full session data:', data);
@@ -790,9 +638,8 @@ function deleteSession(sessionId) {
         return;
     }
 
-    fetch(`${CONFIG.API_BASE}/chat-sessions/${sessionId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+    apiFetch(`${CONFIG.API_BASE}/chat-sessions/${sessionId}`, {
+        method: 'DELETE'
     })
         .then(response => response.json())
         .then(data => {
@@ -821,11 +668,8 @@ async function checkEmotionAndShowRecommendations(userMessage) {
     try {
         console.log('🔍 Analyzing emotion for message:', userMessage.substring(0, 100));
         
-        const response = await fetch('/api/psychologist/analyze-emotion', {
+        const response = await apiFetch('/api/psychologist/analyze-emotion', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({
                 message: userMessage
             })
@@ -967,13 +811,8 @@ async function submitEndSession() {
     
     try {
         console.log('📤 Sending end session request...');
-        const response = await fetch(`/api/chat-sessions/${state.currentSessionId}/end-psychologist-session`, {
+        const response = await apiFetch(`/api/chat-sessions/${state.currentSessionId}/end-psychologist-session`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-User-ID': userId
-            },
             body: JSON.stringify({
                 rating: selectedRating > 0 ? selectedRating : null,
                 feedback: feedback
