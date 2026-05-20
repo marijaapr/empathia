@@ -38,11 +38,11 @@ function initializeDashboard() {
     // Setup chat input Enter key handler
     setupChatInputHandler();
     
-    // Setup auto-refresh for new requests every 10 seconds
+    // Setup auto-refresh for new requests every 3 seconds (faster polling for real-time feel)
     setInterval(() => {
         console.log('🔄 Auto-refreshing dashboard data...');
         loadDashboardData();
-    }, 10000);
+    }, 3000);
 }
 
 function setupChatInputHandler() {
@@ -122,9 +122,14 @@ function loadOnlineStatus() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.profile && data.profile.is_online !== undefined) {
-            document.getElementById('onlineToggle').checked = data.profile.is_online;
-            updateStatusIndicator(data.profile.is_online);
+        console.log('📡 Loaded profile data:', data);
+        // Backend returns profile directly, not wrapped in {profile: ...}
+        if (data && data.is_online !== undefined) {
+            console.log('✅ Setting online status:', data.is_online);
+            document.getElementById('onlineToggle').checked = data.is_online;
+            updateStatusIndicator(data.is_online);
+        } else {
+            console.warn('⚠️ No is_online field in profile data');
         }
     })
     .catch(error => console.error('Error loading online status:', error));
@@ -733,11 +738,11 @@ function openChatInDashboard(sessionId, title) {
         clearInterval(currentChatRefreshInterval);
     }
     
-    // Auto-refresh every 3 seconds
+    // Auto-refresh every 2 seconds for faster real-time updates
     currentChatRefreshInterval = setInterval(() => {
         loadChatMessagesInDashboard(sessionId, true);
-    }, 3000);
-    console.log('⏱️ Auto-refresh interval set (3s)');
+    }, 2000);
+    console.log('⏱️ Auto-refresh interval set (2s)');
     
     console.log('✅ Chat view setup complete');
     
@@ -793,7 +798,8 @@ function loadChatMessagesInDashboard(sessionId, silent = false) {
         // Get psychologist's user_id from auth.users (not psychologist profile id)
         const psychologistUserId = currentUserId;
         
-        messagesContainer.innerHTML = (data.messages || []).map(msg => {
+        // Build new HTML
+        const newHTML = (data.messages || []).map(msg => {
             const isOwnMessage = msg.user_id === psychologistUserId;
             const isPsychologist = msg.role === 'psychologist' || isOwnMessage;
             const isSystem = msg.role === 'system';
@@ -815,8 +821,14 @@ function loadChatMessagesInDashboard(sessionId, silent = false) {
             `;
         }).join('');
         
-        if (wasAtBottom) {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // Only update if content has changed (prevents blinking)
+        if (messagesContainer.innerHTML !== newHTML) {
+            messagesContainer.innerHTML = newHTML;
+            
+            // Auto-scroll to bottom if was near bottom
+            if (wasAtBottom) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
         }
     })
     .catch(error => {

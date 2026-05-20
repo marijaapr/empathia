@@ -200,6 +200,13 @@ class PsychologistRecommendations {
                 this.showSuccessMessage(`Request sent to ${psychologistName}!`);
                 this.close();
                 if (messageInput) messageInput.value = '';
+                
+                // Trigger immediate message refresh to catch psychologist responses faster
+                if (typeof loadSessionMessages === 'function' && currentChatSessionId) {
+                    console.log('🔄 Triggering immediate message refresh after request...');
+                    setTimeout(() => loadSessionMessages(currentChatSessionId, true), 500);
+                    setTimeout(() => loadSessionMessages(currentChatSessionId, true), 1500);
+                }
             } else if (response.status === 401) {
                 this.showError('Please log in again to send a request');
             } else {

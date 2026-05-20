@@ -584,6 +584,18 @@ def get_pending_requests():
         requests_list = response.data or []
         print(f"✅ Found {len(requests_list)} pending requests")
         
+        # DEBUG: Show all requests if none found
+        if len(requests_list) == 0:
+            all_requests = supabase.table('psychologist_chat_requests')\
+                .select('psychologist_id, status')\
+                .eq('status', 'pending')\
+                .execute()
+            print(f"🔍 DEBUG: Total pending requests in DB: {len(all_requests.data or [])}")
+            if all_requests.data:
+                psych_ids = set(r.get('psychologist_id') for r in all_requests.data)
+                print(f"🔍 DEBUG: Pending requests for psychologist IDs: {psych_ids}")
+                print(f"🔍 DEBUG: Looking for: {psychologist_id}")
+        
         # Get user emails for all requests
         formatted_requests = []
         for req in requests_list:
