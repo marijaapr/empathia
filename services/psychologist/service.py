@@ -690,11 +690,33 @@ class PsychologistService:
                 "ended_at", "null"
             ).not_.is_("chat_session_id", "null").execute()
             
-            print(f"✅ Found {len(response.data)} active psychologist_sessions (with chat_session_id)")
-            for session in response.data:
+            sessions = response.data or []
+            print(f"✅ Found {len(sessions)} active psychologist_sessions (with chat_session_id)")
+            for session in sessions:
                 print(f"   → Session ID: {session.get('id')}, chat_session_id: {session.get('chat_session_id')}, ended_at: {session.get('ended_at')}")
             
-            return response.data
+            # Enrich each session with user name
+            enriched_sessions = []
+            for session in sessions:
+                # Get user name from users table
+                session_user_id = session.get('user_id')
+                user_name = 'Anonymous User'
+                
+                if session_user_id:
+                    try:
+                        user_response = self.supabase.table('users').select('full_name, email, username').eq('id', session_user_id).limit(1).execute()
+                        if user_response.data:
+                            user_data = user_response.data[0]
+                            # Prefer full_name, then username, then email prefix
+                            user_name = user_data.get('full_name') or user_data.get('username') or (user_data.get('email', '').split('@')[0] if user_data.get('email') else 'Anonymous User')
+                    except Exception as user_err:
+                        print(f"⚠️ Could not fetch user name for {session_user_id}: {str(user_err)}")
+                
+                # Add user_name to session data
+                session['user_name'] = user_name
+                enriched_sessions.append(session)
+            
+            return enriched_sessions
         except Exception as e:
             print(f"Error fetching psychologist active sessions: {str(e)}")
             raise

@@ -408,41 +408,58 @@ def get_recommended():
     try:
         from database.supabase_db import supabase
         
-        # Get all online psychologists with their profiles
+        print("🔍 Fetching recommended psychologists...")
+        
+        # First, try to get online psychologists
         response = supabase.table('psychologist_profiles').select(
             'id, user_id, full_name, bio, specializations, languages_spoken, session_rate_usd, average_response_time_minutes, profile_image_url, is_online'
         ).eq('is_online', True).execute()
         
+        print(f"📊 Found {len(response.data) if response.data else 0} online psychologists")
+        
+        # If no online psychologists, get all psychologists
+        if not response.data or len(response.data) == 0:
+            print("⚠️ No online psychologists found, fetching all psychologists...")
+            response = supabase.table('psychologist_profiles').select(
+                'id, user_id, full_name, bio, specializations, languages_spoken, session_rate_usd, average_response_time_minutes, profile_image_url, is_online'
+            ).execute()
+            print(f"📊 Found {len(response.data) if response.data else 0} total psychologists")
+        
         psychologists = []
         if response.data:
             for psych in response.data:
-                # Calculate average rating for this psychologist
-                ratings_response = supabase.table('psychologist_ratings').select(
-                    'rating'
-                ).eq('psychologist_id', psych.get('id')).execute()
-                
-                avg_rating = 4.5
-                review_count = 0
-                if ratings_response.data and len(ratings_response.data) > 0:
-                    review_count = len(ratings_response.data)
-                    ratings = [r.get('rating', 4.5) for r in ratings_response.data]
-                    avg_rating = sum(ratings) / len(ratings) if ratings else 4.5
-                
-                psychologists.append({
-                    'id': str(psych.get('id')),
-                    'user_id': str(psych.get('user_id')),
-                    'full_name': psych.get('full_name'),
-                    'bio': psych.get('bio'),
-                    'specializations': psych.get('specializations', []),
-                    'languages_spoken': psych.get('languages_spoken', []),
-                    'session_rate_usd': psych.get('session_rate_usd'),
-                    'average_response_time_minutes': psych.get('average_response_time_minutes'),
-                    'profile_image_url': psych.get('profile_image_url'),
-                    'average_rating': round(avg_rating, 1),  # Frontend expects 'average_rating'
-                    'review_count': review_count
-                })
+                try:
+                    # Calculate average rating for this psychologist
+                    ratings_response = supabase.table('psychologist_ratings').select(
+                        'rating'
+                    ).eq('psychologist_id', psych.get('id')).execute()
+                    
+                    avg_rating = 4.5
+                    review_count = 0
+                    if ratings_response.data and len(ratings_response.data) > 0:
+                        review_count = len(ratings_response.data)
+                        ratings = [r.get('rating', 4.5) for r in ratings_response.data]
+                        avg_rating = sum(ratings) / len(ratings) if ratings else 4.5
+                    
+                    psychologists.append({
+                        'id': str(psych.get('id')),
+                        'user_id': str(psych.get('user_id')),
+                        'full_name': psych.get('full_name', 'Psychology Student'),
+                        'bio': psych.get('bio', 'Available for support'),
+                        'specializations': psych.get('specializations', []),
+                        'languages_spoken': psych.get('languages_spoken', ['English']),
+                        'session_rate_usd': psych.get('session_rate_usd', 0),
+                        'average_response_time_minutes': psych.get('average_response_time_minutes', 5),
+                        'profile_image_url': psych.get('profile_image_url'),
+                        'is_online': psych.get('is_online', False),  # Include online status
+                        'average_rating': round(avg_rating, 1),  # Frontend expects 'average_rating'
+                        'review_count': review_count
+                    })
+                except Exception as psych_error:
+                    print(f"⚠️ Error processing psychologist {psych.get('id')}: {str(psych_error)}")
+                    continue
         
-        print(f"📊 Fetched {len(psychologists)} online psychologists")
+        print(f"✅ Returning {len(psychologists)} psychologists to frontend")
         return jsonify(psychologists), 200
     except Exception as e:
         import traceback
