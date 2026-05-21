@@ -3,6 +3,10 @@ Empathia - Emotional Support & Self-Reflection Assistant
 A bilingual Flask application powered by OpenAI API
 """
 
+# Gevent monkey patching MUST be first
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import json
 from datetime import datetime, timedelta
@@ -569,6 +573,115 @@ def get_session_messages(session_id):
         return jsonify({'error': 'Failed to retrieve session messages'}), 500
 
 
+@app.route('/api/chat-sessions/<session_id>/stream', methods=['GET'])
+def stream_session_messages(session_id):
+    """SSE stream for new messages in user chat session"""
+    from flask import Response, stream_with_context
+    from services.request_auth import get_authenticated_user_id
+    import time
+    
+    # Get user_id from query param (EventSource doesn't support headers)
+    access_token = request.args.get('access_token')
+    if not access_token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    headers = {'Authorization': f'Bearer {access_token}'}
+    user_id = get_authenticated_user_id(headers)
+    
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    def generate():
+        try:
+            print(f"🔍 SSE stream requested for session {session_id} by user {user_id}")
+            
+            # Verify user owns this session OR is the psychologist in this session
+            session_response = supabase.table('chat_sessions').select(
+                'user_id, psychologist_id'
+            ).eq('id', session_id).execute()
+            
+            print(f"📊 Session query result: {session_response.data}")
+            
+            if not session_response.data or len(session_response.data) == 0:
+                print(f"❌ Session {session_id} not found for SSE stream")
+                yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
+                return
+            
+            session = session_response.data[0]
+            is_user = (session['user_id'] == user_id)
+            is_psychologist = False
+            
+            print(f"🔍 Session owner check: is_user={is_user}, session_user={session['user_id']}, current_user={user_id}")
+            
+            # Check if user is the psychologist assigned to this session
+            if session.get('psychologist_id'):
+                print(f"🔍 Checking psychologist access for psychologist_id={session['psychologist_id']}")
+                psych_response = supabase.table('psychologist_profiles').select(
+                    'user_id'
+                ).eq('id', session['psychologist_id']).execute()
+                
+                print(f"📊 Psychologist query result: {psych_response.data}")
+                
+                if psych_response.data and len(psych_response.data) > 0:
+                    is_psychologist = (psych_response.data[0]['user_id'] == user_id)
+                    print(f"🔍 Psychologist check: is_psychologist={is_psychologist}, psych_user={psych_response.data[0]['user_id']}")
+            
+            if not (is_user or is_psychologist):
+                print(f"❌ Unauthorized access attempt for session {session_id}")
+                yield f"data: {json.dumps({'error': 'Unauthorized'})}\n\n"
+                return
+            
+            print(f"✅ Authorization successful: is_user={is_user}, is_psychologist={is_psychologist}")
+            
+            # Start streaming
+            last_timestamp = datetime.utcnow().isoformat()
+            print(f"📡 Starting SSE stream from timestamp: {last_timestamp}")
+            
+            while True:
+                try:
+                    # Fetch new messages since last_timestamp from session_messages
+                    messages_response = supabase.table('session_messages').select(
+                        '*'
+                    ).eq('session_id', session_id).gt('created_at', last_timestamp).order(
+                        'created_at', desc=False
+                    ).execute()
+                    
+                    if messages_response.data and len(messages_response.data) > 0:
+                        for message in messages_response.data:
+                            yield f"data: {json.dumps(message)}\n\n"
+                            last_timestamp = message['created_at']
+                    
+                    # Poll every 1 second
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"❌ Error in chat stream: {error_msg}")
+                    
+                    # Don't send Supabase internal errors to client
+                    if 'PGRST' in error_msg:
+                        print(f"⚠️ Supabase query error (not sending to client): {error_msg}")
+                        continue  # Keep stream alive, just skip this iteration
+                    else:
+                        yield f"data: {json.dumps({'error': 'Stream error occurred'})}\n\n"
+                        break
+                    
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Error initializing chat stream: {error_msg}")
+            if 'PGRST' not in error_msg:
+                yield f"data: {json.dumps({'error': 'Failed to initialize stream'})}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
+
 @app.route('/api/chat-sessions/<session_id>/chat', methods=['POST'])
 def send_session_message(session_id):
     """
@@ -614,9 +727,20 @@ def send_session_message(session_id):
         # Sanitize input
         user_message = sanitize_input(user_message)
 
-        # If psychologist is sending a message, just save it and return
+        # If psychologist is sending a message, verify session still active and has psychologist
         if message_role == 'psychologist':
             print(f"🧑‍⚕️ Psychologist message in session {session_id}")
+            
+            # Check if session still has psychologist assigned
+            from database.supabase_db import supabase
+            session_check = supabase.table('chat_sessions').select('has_psychologist, psychologist_id').eq('id', session_id).execute()
+            
+            if not session_check.data or len(session_check.data) == 0:
+                return jsonify({'error': 'Session not found'}), 404
+            
+            if not session_check.data[0].get('has_psychologist') or not session_check.data[0].get('psychologist_id'):
+                return jsonify({'error': 'Session has ended - user is no longer connected with psychologist'}), 403
+            
             SupabaseDB.add_session_message(session_id, user_id, 'psychologist', user_message, persona, language, None)
             return jsonify({
                 'success': True,
@@ -752,10 +876,13 @@ def end_user_psychologist_session(session_id):
         if session['user_id'] != user_id:
             return jsonify({'error': 'Unauthorized'}), 403
         
+        print(f"🔍 Session data: has_psychologist={session.get('has_psychologist')}, psychologist_id={session.get('psychologist_id')}")
+        
         if not session['has_psychologist'] or not session['psychologist_id']:
             return jsonify({'error': 'No psychologist in this session'}), 400
         
-        psychologist_id = session['psychologist_id']
+        # This is the psychologist_profile.id (not user_id)
+        psychologist_profile_id = session['psychologist_id']
         
         # Find the psychologist_sessions record
         psych_session_response = supabase.table('psychologist_sessions').select(
@@ -777,6 +904,20 @@ def end_user_psychologist_session(session_id):
             'has_psychologist': False
         }).eq('id', session_id).execute()
         
+        # Send system message to notify psychologist that session ended
+        try:
+            system_message = {
+                'session_id': session_id,
+                'role': 'system',
+                'message_type': 'system',
+                'content': 'User has ended the session.',
+                'created_at': datetime.utcnow().isoformat()
+            }
+            supabase.table('session_messages').insert(system_message).execute()
+            print(f"📨 System message sent: User ended session - {system_message}")
+        except Exception as msg_error:
+            print(f"⚠️ Error sending system message: {str(msg_error)}")
+        
         # If rating is provided, save it
         if rating is not None:
             try:
@@ -784,10 +925,11 @@ def end_user_psychologist_session(session_id):
                 if not (1 <= rating <= 5):
                     return jsonify({'error': 'Rating must be between 1 and 5'}), 400
                 
-                # Insert rating (use review_text not feedback)
+                # psychologist_profile_id is already the correct ID from psychologist_profiles table
+                # Insert rating directly
                 supabase.table('psychologist_ratings').insert({
                     'user_id': user_id,
-                    'psychologist_id': psychologist_id,
+                    'psychologist_id': psychologist_profile_id,
                     'session_id': session_id,
                     'rating': rating,
                     'review_text': feedback if feedback else None,
@@ -797,6 +939,10 @@ def end_user_psychologist_session(session_id):
                 print(f"⭐ User rated psychologist: {rating}/5")
             except ValueError:
                 return jsonify({'error': 'Invalid rating value'}), 400
+            except Exception as rating_error:
+                print(f"⚠️ Error saving rating: {str(rating_error)}")
+                # Don't fail the whole request if rating fails
+                pass
         
         print(f"✅ User successfully ended session {session_id}")
         

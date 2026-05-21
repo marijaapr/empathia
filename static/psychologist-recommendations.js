@@ -286,10 +286,11 @@ class PsychologistRecommendations {
                 this.close();
                 if (messageInput) messageInput.value = '';
 
-                if (typeof loadSessionMessages === 'function' && currentChatSessionId) {
-                    setTimeout(() => loadSessionMessages(currentChatSessionId, true), 500);
-                    setTimeout(() => loadSessionMessages(currentChatSessionId, true), 1500);
-                }
+                // Don't reload messages - SSE stream will handle updates
+                // if (typeof loadSessionMessages === 'function' && currentChatSessionId) {
+                //     setTimeout(() => loadSessionMessages(currentChatSessionId, true), 500);
+                //     setTimeout(() => loadSessionMessages(currentChatSessionId, true), 1500);
+                // }
             } else if (response.status === 401) {
                 this.showError(this.t('errorLogin'));
             } else {

@@ -440,6 +440,22 @@ body {
     transition: all 0.3s ease;
 }
 
+.request-card.new-request {
+    animation: slideInFade 0.5s ease-out;
+    border-left: 3px solid var(--primary);
+}
+
+@keyframes slideInFade {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 .request-card:hover,
 .chat-card:hover,
 .session-card:hover,
