@@ -366,6 +366,16 @@ class PsychologistService:
             
             request_data = request_response.data[0]
             
+            # Get user name for session title
+            user_name = "User"
+            try:
+                user_response = self.supabase.table('users').select('full_name, username, email').eq('id', request_data["user_id"]).limit(1).execute()
+                if user_response.data:
+                    user_data = user_response.data[0]
+                    user_name = user_data.get('full_name') or user_data.get('username') or (user_data.get('email', '').split('@')[0] if user_data.get('email') else 'User')
+            except Exception as user_err:
+                print(f"⚠️ Could not fetch user name: {str(user_err)}")
+            
             # Create session
             session_response = self.supabase.table(
                 "psychologist_sessions"
@@ -373,7 +383,7 @@ class PsychologistService:
                 "request_id": request_id,
                 "user_id": request_data["user_id"],
                 "psychologist_id": request_data["psychologist_id"],
-                "title": f"Session with {request_data['user_id']}"
+                "title": f"Session with {user_name}"
             }).execute()
             
             session_data = session_response.data[0] if session_response.data else None
@@ -798,17 +808,19 @@ class PsychologistService:
                 return []
             
             print(f"🔍 Fetching ratings for psychologist_id: {psychologist['id']}")
+            print(f"🔍 Also checking for user_id: {user_id}")
             
-            # Get ratings
+            # Get ratings - check both psychologist_profile.id and user_id for backward compatibility
+            # This handles both old ratings (saved with user_id) and new ratings (saved with profile.id)
             response = self.supabase.table("psychologist_ratings").select(
                 "*"
-            ).eq("psychologist_id", psychologist["id"]).order(
+            ).or_(f"psychologist_id.eq.{psychologist['id']},psychologist_id.eq.{user_id}").order(
                 "created_at", desc=True
             ).limit(limit).execute()
             
-            print(f"✅ Found {len(response.data)} ratings")
+            print(f"✅ Found {len(response.data) if response.data else 0} ratings")
             
-            return response.data
+            return response.data if response.data else []
         except Exception as e:
             print(f"Error fetching psychologist ratings: {str(e)}")
             raise

@@ -53,13 +53,22 @@ class AuthService:
     def sign_out(access_token: str):
         """Sign out user"""
         try:
+            if not access_token:
+                # If no token provided, still consider it a successful logout
+                # (user already logged out on client side)
+                return {"success": True}
+            
             # Create client with user's access token for logout
             supabase_user = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-            supabase_user.auth.set_session(access_token, "")
+            # Sign out (this invalidates the session on Supabase side)
+            supabase_user.postgrest.auth(access_token)
             supabase_user.auth.sign_out()
             return {"success": True}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            print(f"Sign out error: {str(e)}")
+            # Even if sign out fails on server, return success
+            # Client will clear local session anyway
+            return {"success": True}
 
     @staticmethod
     def verify_token(access_token: str):

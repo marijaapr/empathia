@@ -736,13 +736,23 @@ def accept_request(request_id: str):
             })\
             .execute()
         
+        # Get user name for session title
+        user_name = "User"
+        try:
+            user_response = supabase.table('users').select('full_name, username, email').eq('id', chat_request.get('user_id')).limit(1).execute()
+            if user_response.data:
+                user_data = user_response.data[0]
+                user_name = user_data.get('full_name') or user_data.get('username') or (user_data.get('email', '').split('@')[0] if user_data.get('email') else 'User')
+        except Exception as user_err:
+            print(f"⚠️ Could not fetch user name: {str(user_err)}")
+        
         # Create a psychologist_session record for tracking (optional, for psychologist dashboard)
         session_data = {
             'request_id': request_id,
             'user_id': chat_request.get('user_id'),
             'psychologist_id': psychologist_id,
             'chat_session_id': chat_session_id,
-            'title': f"Session with {chat_request.get('user_id', 'User')[:8]}",
+            'title': f"Session with {user_name}",
             'started_at': datetime.utcnow().isoformat(),
             'message_count': 0
         }
@@ -970,13 +980,55 @@ def get_user_active_sessions(psychologist_service, emotion_detector, user_id: st
 @require_auth
 @require_psychologist_role
 def get_psychologist_active_sessions(psychologist_service, emotion_detector, user_id: str):
-    """Get active sessions for psychologist"""
+    """Get active sessions for psychologist - synchronous version to avoid event loop conflicts"""
     try:
-        sessions = run_async(
-            psychologist_service.get_psychologist_active_sessions(user_id)
-        )
+        from database.supabase_db import get_supabase_client
+        supabase = get_supabase_client()
         
-        response = jsonify({"sessions": sessions})
+        # Get psychologist profile
+        print(f"👤 Fetching psychologist profile for user: {user_id}")
+        psychologist_response = supabase.table("psychologists").select("*").eq("user_id", user_id).execute()
+        
+        if not psychologist_response.data:
+            print(f"⚠️ No psychologist profile found for user_id: {user_id}")
+            return jsonify({"sessions": []}), 200
+        
+        psychologist = psychologist_response.data[0]
+        psychologist_id = psychologist['id']
+        
+        print(f"🔍 Fetching active sessions for psychologist_id: {psychologist_id}")
+        
+        # Get active sessions with chat_session_id
+        response = supabase.table("psychologist_sessions").select(
+            "*"
+        ).eq("psychologist_id", psychologist_id).is_(
+            "ended_at", "null"
+        ).not_.is_("chat_session_id", "null").execute()
+        
+        sessions = response.data or []
+        print(f"✅ Found {len(sessions)} active psychologist_sessions (with chat_session_id)")
+        
+        # Enrich with user names
+        enriched_sessions = []
+        for session in sessions:
+            print(f"   → Session ID: {session.get('id')}, chat_session_id: {session.get('chat_session_id')}")
+            
+            session_user_id = session.get('user_id')
+            user_name = 'Anonymous User'
+            
+            if session_user_id:
+                try:
+                    user_response = supabase.table('users').select('full_name, email, username').eq('id', session_user_id).limit(1).execute()
+                    if user_response.data:
+                        user_data = user_response.data[0]
+                        user_name = user_data.get('full_name') or user_data.get('username') or (user_data.get('email', '').split('@')[0] if user_data.get('email') else 'Anonymous User')
+                except Exception as user_err:
+                    print(f"⚠️ Could not fetch user name: {str(user_err)}")
+            
+            session['user_name'] = user_name
+            enriched_sessions.append(session)
+        
+        response = jsonify({"sessions": enriched_sessions})
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -1175,33 +1227,43 @@ def end_psychologist_session(psychologist_service, emotion_detector, user_id: st
         session_notes = data.get('session_notes', '')
         
         print(f"🔚 Ending psychologist session: {session_id}")
+        print(f"🔍 User ID: {user_id}")
         
         # Get the session to find the chat_session_id
         session_response = supabase.table('psychologist_sessions').select(
             'id, chat_session_id, started_at'
-        ).eq('id', session_id).single().execute()
+        ).eq('id', session_id).execute()
         
-        if not session_response.data:
+        print(f"📊 Session query result: {session_response.data}")
+        
+        if not session_response.data or len(session_response.data) == 0:
+            print(f"❌ Session not found: {session_id}")
             return jsonify({"error": "Session not found"}), 404
         
-        session = session_response.data
+        session = session_response.data[0]  # Get first record instead of using .single()
         chat_session_id = session.get('chat_session_id')
         started_at = session.get('started_at')
+        
+        print(f"✅ Found session, chat_session_id: {chat_session_id}")
         
         # Calculate duration
         duration_minutes = 0
         if started_at:
-            from datetime import datetime
+            from datetime import datetime, timezone
             start_time = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)  # Timezone-aware UTC time
             duration_minutes = int((end_time - start_time).total_seconds() / 60)
+        
+        print(f"⏱️ Duration: {duration_minutes} minutes")
         
         # End the psychologist session
         supabase.table('psychologist_sessions').update({
-            'ended_at': datetime.utcnow().isoformat(),
+            'ended_at': datetime.now(timezone.utc).isoformat(),
             'duration_minutes': duration_minutes,
             'session_notes': session_notes
         }).eq('id', session_id).execute()
+        
+        print(f"✅ Updated psychologist_sessions table")
         
         # Remove psychologist from the chat session
         if chat_session_id:
@@ -1209,14 +1271,19 @@ def end_psychologist_session(psychologist_service, emotion_detector, user_id: st
                 'has_psychologist': False
             }).eq('id', chat_session_id).execute()
             
+            print(f"✅ Updated chat_sessions table")
+            
             # Add a system message
             supabase.table('session_messages').insert({
                 'session_id': chat_session_id,
                 'user_id': user_id,
                 'role': 'system',
+                'message_type': 'system',
                 'content': '🧑‍⚕️ The psychologist has left the conversation.',
                 'created_at': datetime.utcnow().isoformat()
             }).execute()
+            
+            print(f"✅ Added system message")
         
         print(f"✅ Session ended: {session_id}")
         return jsonify({"success": True, "message": "Session ended"}), 200
@@ -1371,6 +1438,188 @@ def analyze_emotion(psychologist_service, emotion_detector, user_id):
         print(f"❌ Error in analyze-emotion endpoint: {str(e)}")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# SSE STREAMING ENDPOINTS
+# ============================================================================
+
+def get_auth_from_query():
+    """Get user_id from access_token query parameter (for EventSource)"""
+    from services.request_auth import get_authenticated_user_id
+    
+    access_token = request.args.get('access_token')
+    if not access_token:
+        return None
+    
+    # Create a mock headers dict with the token
+    headers = {'Authorization': f'Bearer {access_token}'}
+    return get_authenticated_user_id(headers)
+
+
+@psychologist_bp.route('/sessions/<session_id>/stream', methods=['GET'])
+def stream_session_messages(session_id: str):
+    """SSE stream for new messages in a session"""
+    from flask import Response, stream_with_context
+    from database.supabase_db import supabase
+    from datetime import datetime
+    import time
+    import json
+    
+    # Get user_id from query param
+    user_id = get_auth_from_query()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    def generate():
+        # Verify authorization
+        try:
+            # Get session details
+            session_response = supabase.table('psychologist_sessions').select(
+                'user_id, psychologist_id'
+            ).eq('id', session_id).single().execute()
+            
+            if not session_response.data:
+                yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
+                return
+            
+            session = session_response.data
+            
+            # Get psychologist profile to check user_id
+            psych_response = supabase.table('psychologist_profiles').select(
+                'user_id'
+            ).eq('id', session['psychologist_id']).single().execute()
+            
+            if not psych_response.data:
+                yield f"data: {json.dumps({'error': 'Psychologist not found'})}\n\n"
+                return
+            
+            is_user = (session['user_id'] == user_id)
+            is_psychologist = (psych_response.data['user_id'] == user_id)
+            
+            if not (is_user or is_psychologist):
+                yield f"data: {json.dumps({'error': 'Unauthorized'})}\n\n"
+                return
+            
+            # Start streaming
+            last_timestamp = datetime.utcnow().isoformat()
+            
+            while True:
+                try:
+                    # Fetch new messages since last_timestamp
+                    messages_response = supabase.table('psychologist_session_messages').select(
+                        '*'
+                    ).eq('session_id', session_id).gt('created_at', last_timestamp).order(
+                        'created_at', desc=False
+                    ).execute()
+                    
+                    if messages_response.data and len(messages_response.data) > 0:
+                        for message in messages_response.data:
+                            yield f"data: {json.dumps(message)}\n\n"
+                            last_timestamp = message['created_at']
+                    
+                    # Poll every 1 second
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"❌ Error in stream: {str(e)}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                    break
+                    
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
+
+@psychologist_bp.route('/requests/stream', methods=['GET'])
+def stream_pending_requests():
+    """SSE stream for new pending requests"""
+    from flask import Response, stream_with_context
+    from database.supabase_db import supabase, SupabaseDB
+    from datetime import datetime
+    import time
+    import json
+    
+    # Get user_id from query param
+    user_id = get_auth_from_query()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    # Check psychologist role
+    if SupabaseDB.get_user_role(user_id) != 'psychologist':
+        return jsonify({"error": "Psychology student access required"}), 403
+    
+    def generate():
+        try:
+            # Get psychologist profile
+            profile_response = supabase.table('psychologist_profiles').select(
+                'id'
+            ).eq('user_id', user_id).single().execute()
+            
+            if not profile_response.data:
+                yield f"data: {json.dumps({'error': 'Psychologist profile not found'})}\n\n"
+                return
+            
+            psychologist_id = profile_response.data['id']
+            last_timestamp = datetime.utcnow().isoformat()
+            
+            while True:
+                try:
+                    # Fetch new pending requests since last_timestamp
+                    requests_response = supabase.table('psychologist_chat_requests').select(
+                        '*'
+                    ).eq('psychologist_id', psychologist_id).eq('status', 'pending').gt(
+                        'created_at', last_timestamp
+                    ).order('created_at', desc=False).execute()
+                    
+                    if requests_response.data and len(requests_response.data) > 0:
+                        for req in requests_response.data:
+                            # Enrich with user name
+                            user_response = supabase.table('users').select(
+                                'full_name, email, username'
+                            ).eq('id', req['user_id']).limit(1).execute()
+                            
+                            if user_response.data:
+                                user_data = user_response.data[0]
+                                user_name = (
+                                    user_data.get('full_name') or 
+                                    user_data.get('username') or 
+                                    (user_data.get('email', '').split('@')[0] if user_data.get('email') else 'Anonymous User')
+                                )
+                            else:
+                                user_name = 'Anonymous User'
+                            
+                            req['user_name'] = user_name
+                            yield f"data: {json.dumps(req)}\n\n"
+                            last_timestamp = req['created_at']
+                    
+                    # Poll every 2 seconds
+                    time.sleep(2)
+                    
+                except Exception as e:
+                    print(f"❌ Error in requests stream: {str(e)}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                    break
+                    
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
+    )
 
 
 # ============================================================================

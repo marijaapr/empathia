@@ -55,11 +55,8 @@ function initializeDashboard() {
     // Setup chat input Enter key handler
     setupChatInputHandler();
     
-    // Setup auto-refresh for new requests every 3 seconds (faster polling for real-time feel)
-    setInterval(() => {
-        console.log('🔄 Auto-refreshing dashboard data...');
-        loadDashboardData();
-    }, 3000);
+    // Start SSE stream for new requests (replaces polling)
+    startRequestStream();
 }
 
 function setupChatInputHandler() {
@@ -327,7 +324,7 @@ function displayRequests(requests) {
         html = '<div class="empty-state">No pending requests</div>';
     } else {
         html = requests.map(req => `
-            <div class="request-card">
+            <div class="request-card" data-request-id="${req.id}">
                 <div class="request-header">
                     <h3>${req.user_name || 'Anonymous User'}</h3>
                     <span class="urgency urgency-${req.urgency_level || 'medium'}">${req.urgency_level || 'Medium'}</span>
@@ -344,6 +341,187 @@ function displayRequests(requests) {
     // Only update DOM if content has changed (prevents blinking)
     if (requestsList.innerHTML !== html) {
         requestsList.innerHTML = html;
+    }
+}
+
+// ============================================================================
+// SSE STREAMING FOR NEW REQUESTS
+// ============================================================================
+
+let requestStream = null;
+
+function startRequestStream() {
+    // Don't create duplicate streams
+    if (requestStream) {
+        console.log('ℹ️ Request stream already active');
+        return;
+    }
+    
+    if (!currentAccessToken) {
+        console.warn('⚠️ No access token for streaming');
+        return;
+    }
+    
+    console.log('🔌 Starting SSE stream for new requests');
+    
+    // Note: EventSource doesn't support custom headers, so we pass token as query param
+    const streamUrl = `/api/psychologist/requests/stream?access_token=${currentAccessToken}`;
+    requestStream = new EventSource(streamUrl);
+    
+    requestStream.onmessage = function(event) {
+        try {
+            const request = JSON.parse(event.data);
+            if (request.error) {
+                console.error('❌ Stream error:', request.error);
+                return;
+            }
+            console.log('📨 New request via SSE:', request);
+            prependRequestCard(request);
+        } catch (e) {
+            console.error('❌ Error parsing SSE request:', e);
+        }
+    };
+    
+    requestStream.onerror = function(error) {
+        console.error('❌ SSE connection error:', error);
+        // Auto-reconnect is handled by browser
+        if (requestStream.readyState === EventSource.CLOSED) {
+            console.log('🔌 SSE request stream closed');
+            requestStream = null;
+        }
+    };
+    
+    requestStream.onopen = function() {
+        console.log('✅ SSE request stream connected');
+    };
+}
+
+function prependRequestCard(request) {
+    const requestsList = document.getElementById('requestsList');
+    if (!requestsList) return;
+    
+    // Remove empty state if present
+    const emptyState = requestsList.querySelector('.empty-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    // Create new request card
+    const cardHtml = `
+        <div class="request-card new-request" data-request-id="${request.id}">
+            <div class="request-header">
+                <h3>${request.user_name || 'Anonymous User'}</h3>
+                <span class="urgency urgency-${request.urgency_level || 'medium'}">${request.urgency_level || 'Medium'}</span>
+            </div>
+            <p class="request-message">${request.message || 'Client wants to chat with you'}</p>
+            <div class="request-time">${formatDate(request.created_at)}</div>
+            <div class="request-actions">
+                <button class="btn-action btn-accept" onclick="openRequestDetail('${request.id}')">View & Respond</button>
+            </div>
+        </div>
+    `;
+    
+    // Insert at the beginning
+    requestsList.insertAdjacentHTML('afterbegin', cardHtml);
+    
+    // Update count
+    const badge = document.getElementById('requestsBadge');
+    const countEl = document.getElementById('pendingRequestsCount');
+    const currentCount = parseInt(countEl.textContent) || 0;
+    const newCount = currentCount + 1;
+    
+    countEl.textContent = newCount;
+    if (badge) {
+        badge.textContent = newCount;
+        badge.style.display = 'inline-block';
+    }
+    
+    // Add animation effect (optional)
+    const newCard = requestsList.querySelector('.new-request');
+    if (newCard) {
+        setTimeout(() => {
+            newCard.classList.remove('new-request');
+        }, 2000);
+    }
+    
+    // Show notification
+    showNotification(`New request from ${request.user_name || 'a user'}`, 'info');
+}
+
+// Remove a request card from the list (when accepted or declined)
+function removeRequestCard(requestId) {
+    console.log('🗑️ Attempting to remove request card:', requestId);
+    const requestsList = document.getElementById('requestsList');
+    if (!requestsList) {
+        console.error('❌ requestsList element not found');
+        return;
+    }
+    
+    // Find the request card by data-request-id attribute
+    const card = requestsList.querySelector(`.request-card[data-request-id="${requestId}"]`);
+    if (card) {
+        console.log('✅ Found request card, removing...');
+        card.remove();
+        
+        // Update count
+        const badge = document.getElementById('requestsBadge');
+        const countEl = document.getElementById('pendingRequestsCount');
+        const currentCount = parseInt(countEl.textContent) || 0;
+        const newCount = Math.max(0, currentCount - 1);
+        
+        console.log(`📊 Updating count: ${currentCount} → ${newCount}`);
+        countEl.textContent = newCount;
+        if (badge) {
+            badge.textContent = newCount;
+            if (newCount === 0) {
+                badge.style.display = 'none';
+            }
+        }
+        
+        // If no more requests, show empty state
+        if (requestsList.children.length === 0) {
+            console.log('📝 No more requests, showing empty state');
+            requestsList.innerHTML = '<div class="empty-state">No pending requests</div>';
+        }
+    } else {
+        console.warn('⚠️ Request card not found with ID:', requestId);
+        // Fallback: try to find by onclick attribute
+        const requestCards = requestsList.querySelectorAll('.request-card');
+        console.log(`🔍 Trying fallback search through ${requestCards.length} cards`);
+        for (const card of requestCards) {
+            const button = card.querySelector('.btn-action[onclick*="' + requestId + '"]');
+            if (button) {
+                console.log('✅ Found via fallback, removing...');
+                card.remove();
+                
+                // Update count
+                const badge = document.getElementById('requestsBadge');
+                const countEl = document.getElementById('pendingRequestsCount');
+                const currentCount = parseInt(countEl.textContent) || 0;
+                const newCount = Math.max(0, currentCount - 1);
+                
+                countEl.textContent = newCount;
+                if (badge) {
+                    badge.textContent = newCount;
+                    if (newCount === 0) {
+                        badge.style.display = 'none';
+                    }
+                }
+                
+                if (requestsList.children.length === 0) {
+                    requestsList.innerHTML = '<div class="empty-state">No pending requests</div>';
+                }
+                break;
+            }
+        }
+    }
+}
+
+function stopRequestStream() {
+    if (requestStream) {
+        console.log('🔌 Closing request stream');
+        requestStream.close();
+        requestStream = null;
     }
 }
 
@@ -500,7 +678,15 @@ function loadRatings() {
     .then(response => response.json())
     .then(data => {
         if (data.stats) {
-            document.getElementById('averageRating').textContent = (data.stats.average_rating || 0).toFixed(1);
+            const avgRating = (data.stats.average_rating || 0).toFixed(1);
+            document.getElementById('averageRating').textContent = avgRating;
+            
+            // Also update the big rating display in Reviews & Ratings section
+            const bigRatingEl = document.getElementById('bigRating');
+            if (bigRatingEl) {
+                bigRatingEl.textContent = avgRating;
+            }
+            
             displayRatings(data.ratings || []);
             displayRatingStars(data.stats.average_rating || 0);
             document.getElementById('ratingCount').textContent = `${data.stats.total_ratings || 0} reviews`;
@@ -668,18 +854,21 @@ function acceptRequest() {
             showNotification('✅ Request accepted! Opening chat...', 'success');
             closeModal('requestModal');
             
+            // Remove the request card from the list
+            removeRequestCard(requestId);
+            
             const chatSessionId = data.chat_session_id;
             console.log('📂 Chat session ID:', chatSessionId);
             
-            // Open the chat immediately without waiting for dashboard reload
+            // Open the chat immediately - SSE will handle any updates
             setTimeout(() => {
                 console.log('🔄 Opening chat view...');
                 openChatInDashboard(chatSessionId, 'Psychologist Session');
                 
-                // Then reload dashboard data in the background
-                loadDashboardData().catch(err => {
-                    console.warn('⚠️ Dashboard reload failed (non-critical):', err);
-                });
+                // Don't reload dashboard - SSE request stream will handle updates
+                // loadDashboardData().catch(err => {
+                //     console.warn('⚠️ Dashboard reload failed (non-critical):', err);
+                // });
             }, 300);
         } else {
             console.error('❌ Unexpected response format:', data);
@@ -708,6 +897,7 @@ function openChat(sessionId) {
 }
 
 let currentChatRefreshInterval = null;
+let currentChatStream = null;
 
 function openChatInDashboard(sessionId, title) {
     console.log('💬 openChatInDashboard() called');
@@ -755,13 +945,27 @@ function openChatInDashboard(sessionId, title) {
     if (currentChatRefreshInterval) {
         console.log('🔄 Clearing existing refresh interval');
         clearInterval(currentChatRefreshInterval);
+        currentChatRefreshInterval = null;
     }
     
-    // Auto-refresh every 2 seconds for faster real-time updates
+    // Close any existing stream
+    if (currentChatStream) {
+        console.log('🔌 Closing existing chat stream');
+        currentChatStream.close();
+        currentChatStream = null;
+    }
+    
+    // Start SSE stream for real-time messages
+    startChatStream(sessionId);
+    
+    // Add a backup session status check every 2 seconds (critical for when SSE fails due to expired tokens)
+    if (currentChatRefreshInterval) {
+        clearInterval(currentChatRefreshInterval);
+    }
+    console.log('⏰ Starting backup session status check every 2 seconds');
     currentChatRefreshInterval = setInterval(() => {
-        loadChatMessagesInDashboard(sessionId, true);
-    }, 2000);
-    console.log('⏱️ Auto-refresh interval set (2s)');
+        checkSessionStatus(sessionId);
+    }, 2000); // Check every 2 seconds
     
     console.log('✅ Chat view setup complete');
     
@@ -775,6 +979,235 @@ function openChatInDashboard(sessionId, title) {
             console.warn('⚠️ Input not found');
         }
     }, 100);
+}
+
+function startChatStream(sessionId) {
+    // Don't create duplicate streams
+    if (currentChatStream) {
+        console.log('ℹ️ Chat stream already active');
+        return;
+    }
+    
+    if (!currentAccessToken) {
+        console.warn('⚠️ No access token for streaming');
+        return;
+    }
+    
+    console.log('🔌 Starting SSE stream for chat session:', sessionId);
+    
+    // Use the same endpoint as user chat (streams from session_messages table)
+    // The sessionId here is the chat_session_id, not psychologist_session_id
+    const streamUrl = `/api/chat-sessions/${sessionId}/stream?access_token=${currentAccessToken}`;
+    currentChatStream = new EventSource(streamUrl);
+    
+    currentChatStream.onmessage = function(event) {
+        console.log('📬 SSE onmessage fired, raw event data:', event.data);
+        try {
+            const message = JSON.parse(event.data);
+            console.log('📨 Parsed SSE message:', message);
+            
+            if (message.error) {
+                console.error('❌ Stream error:', message.error);
+                return;
+            }
+            
+            appendMessageToDashboard(message);
+        } catch (e) {
+            console.error('❌ Error parsing SSE message:', e, 'Raw data:', event.data);
+        }
+    };
+    
+    currentChatStream.onerror = function(error) {
+        console.error('❌ SSE chat connection error:', error);
+        console.error('🔍 SSE readyState:', currentChatStream?.readyState);
+        console.error('🔍 EventSource states:', {
+            CONNECTING: EventSource.CONNECTING,
+            OPEN: EventSource.OPEN,
+            CLOSED: EventSource.CLOSED,
+            current: currentChatStream?.readyState
+        });
+        
+        // If connection failed (possibly due to expired token), rely on backup polling
+        console.warn('⚠️ SSE connection failed - backup polling will handle session updates');
+        
+        // Close stream to prevent auto-reconnect to invalid sessions
+        if (currentChatStream) {
+            console.log('🔌 Closing chat stream due to error');
+            currentChatStream.close();
+            currentChatStream = null;
+        }
+    };
+    
+    currentChatStream.onopen = function() {
+        console.log('✅ SSE chat stream connected');
+    };
+}
+
+// Backup check to verify session is still active (in case SSE fails)
+function checkSessionStatus(sessionId) {
+    console.log('🔍 Checking session status for:', sessionId);
+    
+    // Use plain fetch without auth headers to avoid 401 errors when token expires
+    fetch(`/api/chat-sessions/${sessionId}/messages?limit=1`, {
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('📡 Session status check response:', response.status);
+        if (!response.ok) {
+            console.warn('⚠️ Session status check failed:', response.status);
+            // Don't throw - just log and continue
+            return null;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (!data) {
+            console.log('⚠️ No data from session status check');
+            return;
+        }
+        
+        console.log('📊 Session status:', {
+            has_psychologist: data.has_psychologist,
+            session_id: sessionId
+        });
+        
+        // If has_psychologist is false, session was ended by user
+        if (data.has_psychologist === false) {
+            console.log('� BACKUP CHECK TRIGGERED: User has ended the session!');
+            showNotification('⚠️ User ended the session - closing chat', 'info');
+            
+            // Clear the interval
+            if (currentChatRefreshInterval) {
+                clearInterval(currentChatRefreshInterval);
+                currentChatRefreshInterval = null;
+            }
+            
+            // Close chat immediately
+            stopChatStream();
+            closeChatInDashboard();
+            
+            // Refresh lists
+            setTimeout(() => {
+                loadActiveSessions();
+                loadCompletedSessions();
+            }, 500);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error checking session status:', error);
+        // Don't close chat on error - might just be network issue
+    });
+}
+
+function appendMessageToDashboard(message) {
+    console.log('🎯 appendMessageToDashboard CALLED with message:', {
+        id: message.id,
+        role: message.role,
+        message_type: message.message_type,
+        content: message.content?.substring(0, 50),
+        session_id: message.session_id
+    });
+    
+    const messagesContainer = document.getElementById('chatMessagesInDashboard');
+    if (!messagesContainer) {
+        console.warn('⚠️ messagesContainer not found!');
+        return;
+    }
+    
+    const chatViewElement = document.getElementById('chatView');
+    const currentSessionId = chatViewElement?.dataset?.sessionId;
+    
+    console.log('🔍 Session check:', {
+        messageSessionId: message.session_id,
+        currentSessionId: currentSessionId,
+        matches: message.session_id === currentSessionId
+    });
+    
+    // Only append if message is for current session
+    if (message.session_id !== currentSessionId) {
+        console.warn('⚠️ Message session mismatch, skipping');
+        return;
+    }
+    
+    // Check if message already exists (prevent duplicates)
+    const messageId = message.id;
+    if (messageId) {
+        const existingMessage = messagesContainer.querySelector(`[data-message-id="${messageId}"]`);
+        if (existingMessage) {
+            console.log('ℹ️ Message already in DOM, skipping:', messageId);
+            return;
+        }
+    }
+    
+    // Check if this is a session end notification
+    const isSystem = message.message_type === 'system' || message.role === 'system';
+    console.log('🔍 Message check:', {
+        isSystem,
+        message_type: message.message_type,
+        role: message.role,
+        content: message.content,
+        includesEndedSession: message.content?.includes('ended the session')
+    });
+    
+    if (isSystem && message.content && message.content.includes('ended the session')) {
+        console.log('🚨 USER ENDED SESSION - CLOSING CHAT NOW!');
+        showNotification('⚠️ User ended the session - closing chat', 'info');
+        
+        // Close chat immediately - no delay
+        stopChatStream(); // Stop SSE stream first
+        closeChatInDashboard();
+        
+        // Refresh lists after a short delay
+        setTimeout(() => {
+            loadActiveSessions();
+            loadCompletedSessions();
+        }, 500);
+        
+        // Don't show the message in chat since we're closing
+        return;
+    }
+    
+    const wasAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 50;
+    
+    // Get psychologist's user_id from auth.users (not psychologist profile id)
+    const psychologistUserId = currentUserId;
+    
+    const isOwnMessage = message.sender_id === psychologistUserId || message.user_id === psychologistUserId;
+    const isPsychologist = message.role === 'psychologist' || isOwnMessage;
+    
+    let messageClass;
+    if (isSystem) {
+        messageClass = 'message-system';
+    } else if (isOwnMessage) {
+        messageClass = 'message-sent';
+    } else {
+        messageClass = 'message-received';
+    }
+    
+    const messageIdAttr = messageId ? `data-message-id="${messageId}"` : '';
+    const messageHtml = `
+        <div class="chat-message ${messageClass}" ${messageIdAttr}>
+            <div class="message-content">${escapeHtml(message.content)}</div>
+            <div class="message-time">${formatDate(message.created_at)}</div>
+        </div>
+    `;
+    
+    messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+    
+    // Auto-scroll to bottom if was near bottom
+    if (wasAtBottom) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+function stopChatStream() {
+    if (currentChatStream) {
+        console.log('🔌 Closing chat stream');
+        currentChatStream.close();
+        currentChatStream = null;
+    }
 }
 
 function loadChatMessagesInDashboard(sessionId, silent = false) {
@@ -832,8 +1265,9 @@ function loadChatMessagesInDashboard(sessionId, silent = false) {
                 messageClass = 'message-received';
             }
             
+            const messageIdAttr = msg.id ? `data-message-id="${msg.id}"` : '';
             return `
-                <div class="chat-message ${messageClass}">
+                <div class="chat-message ${messageClass}" ${messageIdAttr}>
                     <div class="message-content">${escapeHtml(msg.content)}</div>
                     <div class="message-time">${formatDate(msg.created_at)}</div>
                 </div>
@@ -916,6 +1350,30 @@ function sendMessageInDashboard(event) {
         if (!response.ok) {
             return response.text().then(text => {
                 console.error('❌ Server error response:', text);
+                
+                // Check if session has ended (403 error)
+                if (response.status === 403) {
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(text);
+                    } catch (e) {
+                        errorData = { error: text };
+                    }
+                    
+                    // If session ended, close chat
+                    if (errorData.error && errorData.error.includes('ended')) {
+                        console.log('🚨 Session ended detected via 403 error - closing chat');
+                        showNotification('⚠️ User ended the session - closing chat', 'info');
+                        stopChatStream();
+                        closeChatInDashboard();
+                        setTimeout(() => {
+                            loadActiveSessions();
+                            loadCompletedSessions();
+                        }, 500);
+                        throw new Error('Session ended');
+                    }
+                }
+                
                 throw new Error(`HTTP ${response.status}: ${text}`);
             });
         }
@@ -923,8 +1381,8 @@ function sendMessageInDashboard(event) {
     })
     .then(data => {
         console.log('✅ Message sent successfully:', data);
-        // Immediately reload messages
-        loadChatMessagesInDashboard(sessionId);
+        // Don't reload - message will arrive via SSE stream automatically
+        // This prevents blinking
     })
     .catch(error => {
         console.error('❌ Error sending message:', error);
@@ -946,6 +1404,9 @@ function closeChatInDashboard() {
         clearInterval(currentChatRefreshInterval);
         currentChatRefreshInterval = null;
     }
+    
+    // Stop SSE stream
+    stopChatStream();
     
     // Reload active sessions to show updated list
     loadActiveSessions().then(() => {

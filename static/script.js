@@ -71,7 +71,9 @@ let state = {
     isLoading: false,
     isPsychologistSession: localStorage.getItem('is_psychologist_chat') === 'true',
     messageRefreshInterval: null,
-    lastPsychologistStatus: null  // Track last known psychologist status
+    lastPsychologistStatus: null,  // Track last known psychologist status
+    messageStream: null,  // EventSource for SSE streaming
+    psychologistName: 'Psychologist'  // Store psychologist's name
 };
 
 // DOM Elements
@@ -230,11 +232,15 @@ function initializeApp() {
     // Focus on input
     elements.messageInput?.focus();
     
-    // Auto-refresh chat sessions every 15 seconds to detect psychologist joins
-    setInterval(() => {
-        console.log('🔄 Auto-refreshing chat sessions...');
-        loadChatSessions();
-    }, 15000);
+    // DISABLED: Auto-refresh causes blinking
+    // Chat sessions will refresh when:
+    // - User creates new chat
+    // - User deletes chat
+    // - User manually refreshes page
+    // setInterval(() => {
+    //     console.log('🔄 Auto-refreshing chat sessions...');
+    //     loadChatSessions();
+    // }, 15000);
 }
 
 function setupEventListeners() {
@@ -304,8 +310,8 @@ async function sendMessage(event) {
     setLoading(true);
     elements.messageInput.value = '';
 
-    // Add user message to UI
-    addMessageToUI('user', content);
+    // Don't add user message to UI manually - SSE will handle it
+    // addMessageToUI('user', content);
 
     try {
         // Send to session API
@@ -327,10 +333,15 @@ async function sendMessage(event) {
 
         const data = await response.json();
 
+        // Don't add AI response manually - SSE will handle it
         // Only add AI response if no psychologist present
-        if (data.response && !data.has_psychologist) {
-            addMessageToUI('assistant', data.response);
-        } else if (data.has_psychologist) {
+        // if (data.response && !data.has_psychologist) {
+        //     addMessageToUI('assistant', data.response);
+        // } else if (data.has_psychologist) {
+        //     console.log('👥 Psychologist is in this chat - waiting for human response');
+        // }
+        
+        if (data.has_psychologist) {
             console.log('👥 Psychologist is in this chat - waiting for human response');
         }
 
@@ -526,6 +537,68 @@ async function loadMoodStats() {
     }
 }
 
+// Add a single chat session to the sidebar (for new chats without full reload)
+function addChatToSidebar(session) {
+    const sessionsList = document.getElementById('chatSessionsList');
+    if (!sessionsList) return;
+
+    // Remove "No chats yet" message if it exists
+    const noChatsMsg = sessionsList.querySelector('p');
+    if (noChatsMsg && noChatsMsg.textContent === 'No chats yet') {
+        sessionsList.innerHTML = '';
+    }
+
+    const date = new Date(session.created_at).toLocaleDateString();
+    const label = session.has_psychologist ? ' (with student)' : '';
+    
+    const chatHtml = `
+        <div class="chat-session-item ${session.has_psychologist ? 'psychologist-session' : ''}">
+            <div onclick="loadSession('${session.id}')" style="flex: 1; cursor: pointer;">
+                <p class="session-title">${session.title}${label}</p>
+                <p class="session-date">${date}</p>
+            </div>
+            <button class="btn-delete-chat" onclick='openDeleteChatModal(${JSON.stringify(session.id)}, ${JSON.stringify(session.title || "Chat")})' title="Delete chat">Delete</button>
+        </div>
+    `;
+    
+    // Add to the top of the list
+    sessionsList.insertAdjacentHTML('afterbegin', chatHtml);
+}
+
+// Update a chat session's psychologist status in the sidebar (without full reload)
+function updateChatSessionInSidebar(sessionId, hasPsychologist) {
+    const sessionsList = document.getElementById('chatSessionsList');
+    if (!sessionsList) return;
+
+    // Find the chat session item in the sidebar
+    const chatItems = sessionsList.querySelectorAll('.chat-session-item');
+    for (const item of chatItems) {
+        const clickableDiv = item.querySelector('[onclick*="loadSession"]');
+        if (clickableDiv && clickableDiv.getAttribute('onclick').includes(sessionId)) {
+            const titleElement = item.querySelector('.session-title');
+            if (titleElement) {
+                // Remove the existing "(with student)" label if present
+                let titleText = titleElement.textContent.replace(/\s*\(with student\)\s*$/i, '').trim();
+                
+                // Add label if has psychologist
+                if (hasPsychologist) {
+                    titleText += ' (with student)';
+                }
+                
+                titleElement.textContent = titleText;
+                
+                // Update CSS class
+                if (hasPsychologist) {
+                    item.classList.add('psychologist-session');
+                } else {
+                    item.classList.remove('psychologist-session');
+                }
+            }
+            break;
+        }
+    }
+}
+
 function loadChatSessions(skipAutoSelect = false) {
     const userId = localStorage.getItem('user_id');
     const accessToken = localStorage.getItem('access_token');
@@ -710,11 +783,11 @@ function submitNewChat(event) {
                     </div>
                 `;
 
-                loadChatSessions(true);
+                // Add new chat to sidebar without reloading
+                addChatToSidebar(data.session);
 
-                state.messageRefreshInterval = setInterval(() => {
-                    loadSessionMessages(data.session.id, true);
-                }, 2000);
+                // Start SSE stream for the new session
+                startMessageStream(data.session.id);
 
                 elements.messageInput?.focus();
             }
@@ -817,6 +890,9 @@ document.addEventListener('keydown', (e) => {
 
 // Helper function to load messages for a specific session
 function loadSessionMessages(sessionId, silent = false) {
+    console.log('🔄 loadSessionMessages CALLED for session:', sessionId, 'silent:', silent);
+    console.trace('Call stack:'); // Show where this was called from
+    
     apiFetch(`${CONFIG.API_BASE}/chat-sessions/${sessionId}/messages?limit=50`)
         .then(response => response.json())
         .then(data => {
@@ -826,6 +902,10 @@ function loadSessionMessages(sessionId, silent = false) {
                 // Build HTML string
                 let newHTML = '';
                 const psychologistName = data.psychologist_name || 'Psychologist';
+                
+                // Store psychologist name in state for SSE messages
+                state.psychologistName = psychologistName;
+                console.log('👤 Psychologist name stored:', psychologistName);
                 
                 // Update button based on has_psychologist status from API
                 if (data.has_psychologist !== undefined) {
@@ -860,7 +940,9 @@ function loadSessionMessages(sessionId, silent = false) {
                             formattedContent = formatMessageHtml(content);
                         }
                         
-                        newHTML += `<div class="message ${role}"><div class="message-content message-body">${formattedContent}</div></div>`;
+                        // Add message ID to track duplicates
+                        const messageId = msg.id ? `data-message-id="${msg.id}"` : '';
+                        newHTML += `<div class="message ${role}" ${messageId}><div class="message-content message-body">${formattedContent}</div></div>`;
                     });
                 } else {
                     newHTML = '<div class="message assistant"><div class="message-content message-body"><p class="message-paragraph">No messages in this chat yet. Start a conversation!</p></div></div>';
@@ -885,6 +967,10 @@ function loadSessionMessages(sessionId, silent = false) {
 }
 
 function loadSession(sessionId) {
+    console.log('🎯 loadSession called with sessionId:', sessionId);
+    console.log('🎯 Current state.currentSessionId:', state.currentSessionId);
+    console.log('🎯 Current state.messageStream:', state.messageStream);
+    
     state.currentSessionId = sessionId;
     state.isPsychologistSession = false;  // Reset flag
     state.lastPsychologistStatus = null;  // Reset status tracking
@@ -897,48 +983,227 @@ function loadSession(sessionId) {
     // Clear any existing refresh interval
     if (state.messageRefreshInterval) {
         clearInterval(state.messageRefreshInterval);
+        state.messageRefreshInterval = null;
     }
     
-    // Function to check and update end session button
-    const checkPsychologistStatus = () => {
-        apiFetch(`${CONFIG.API_BASE}/chat-sessions?userId=${userId}`)
-            .then(response => response.json())
-            .then(data => {
-                console.log('🔍 Full session data:', data);
-                const currentSession = data.sessions?.find(s => s.id === sessionId);
-                console.log('🔍 Current session found:', currentSession);
-                if (currentSession) {
-                    const hasPsychologist = currentSession.has_psychologist;
-                    console.log('🔍 Has psychologist value:', hasPsychologist, 'Type:', typeof hasPsychologist);
-                    
-                    // Update if status changed OR if this is the first check (was null)
-                    if (state.lastPsychologistStatus !== hasPsychologist) {
-                        console.log('📊 Psychologist status changed:', {
-                            id: sessionId,
-                            was: state.lastPsychologistStatus,
-                            now: hasPsychologist
-                        });
-                        state.lastPsychologistStatus = hasPsychologist;
-                        updateEndSessionButton(hasPsychologist);
-                    } else {
-                        console.log('ℹ️ No status change detected');
-                    }
-                }
-            })
-            .catch(error => console.error('Error checking session status:', error));
+    // Close any existing EventSource stream
+    if (state.messageStream) {
+        state.messageStream.close();
+        state.messageStream = null;
+    }
+    
+    // Don't make extra API call - loadSessionMessages will provide psychologist status
+    // const checkPsychologistStatus = () => { ... }
+    // checkPsychologistStatus();
+
+    // Load messages initially (this also fetches psychologist status)
+    // Important: This provides psychologist name and has_psychologist flag
+    loadSessionMessages(sessionId);
+    
+    // Start SSE stream after a small delay to ensure initial messages are loaded
+    console.log('⏱️ Scheduling SSE stream start for session:', sessionId);
+    setTimeout(() => {
+        console.log('🚀 Attempting to start SSE stream for session:', sessionId);
+        startMessageStream(sessionId);
+    }, 100);
+    
+    // Psychologist status will be detected from SSE messages (sender: 'psychologist')
+    // No need for separate polling
+}
+
+/**
+ * Start EventSource stream for real-time messages
+ */
+function startMessageStream(sessionId) {
+    console.log('🔌 startMessageStream called with sessionId:', sessionId);
+    console.log('🔍 Current state.messageStream:', state.messageStream);
+    console.log('🔍 Current state.currentSessionId:', state.currentSessionId);
+    
+    // Don't create duplicate streams
+    if (state.messageStream) {
+        console.log('⚠️ Message stream already active! Closing old stream first.');
+        state.messageStream.close();
+        state.messageStream = null;
+    }
+    
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+        console.warn('⚠️ No access token for streaming');
+        return;
+    }
+    
+    console.log('🔌 Starting SSE stream for session:', sessionId);
+    
+    // Use the user chat SSE endpoint (streams from session_messages table)
+    const streamUrl = `${CONFIG.API_BASE}/chat-sessions/${sessionId}/stream?access_token=${accessToken}`;
+    console.log('📡 Stream URL:', streamUrl);
+    
+    state.messageStream = new EventSource(streamUrl);
+    
+    state.messageStream.onmessage = function(event) {
+        console.log('📬 USER SSE: Raw message received:', event.data);
+        try {
+            const message = JSON.parse(event.data);
+            console.log('📨 USER SSE: Parsed message:', {
+                id: message.id,
+                role: message.role,
+                sender: message.sender,
+                session_id: message.session_id,
+                content: message.content?.substring(0, 50)
+            });
+            
+            if (message.error) {
+                console.error('❌ Stream error:', message.error);
+                return;
+            }
+            
+            handleNewMessage(message);
+        } catch (e) {
+            console.error('❌ Error parsing SSE message:', e, 'Raw data:', event.data);
+        }
     };
     
-    // Check initially and update button immediately
-    checkPsychologistStatus();
+    state.messageStream.onerror = function(error) {
+        console.error('❌ SSE connection error:', error);
+        // Close the stream to prevent auto-reconnect to deleted/invalid sessions
+        if (state.messageStream) {
+            console.log('🔌 Closing SSE stream due to error');
+            state.messageStream.close();
+            state.messageStream = null;
+        }
+    };
+    
+    state.messageStream.onopen = function() {
+        console.log('✅ SSE stream connected');
+    };
+}
 
-    // Load messages initially
-    loadSessionMessages(sessionId);
+/**
+ * Handle new message received from SSE stream
+ */
+async function handleNewMessage(message) {
+    // Only handle if it's for the current session
+    if (message.session_id !== state.currentSessionId) {
+        return;
+    }
+    
+    console.log('📨 Handling new message via SSE:', message);
+    
+    // Check if message is from psychologist to update button state
+    if (message.sender === 'psychologist' || message.role === 'psychologist') {
+        // Psychologist is active in this session
+        if (state.lastPsychologistStatus !== true) {
+            console.log('📊 Psychologist detected from SSE message');
+            state.lastPsychologistStatus = true;
+            updateEndSessionButton(true);
+            
+            // Update sidebar to show "(with student)" label
+            updateChatSessionInSidebar(message.session_id, true);
+        }
+        
+        // Fetch psychologist name if we don't have it yet
+        if (!state.psychologistName || state.psychologistName === 'Psychologist') {
+            console.log('🔍 Fetching psychologist name for SSE message...');
+            try {
+                const response = await apiFetch(`${CONFIG.API_BASE}/chat-sessions/${message.session_id}/messages?limit=1`);
+                const data = await response.json();
+                if (data.psychologist_name) {
+                    state.psychologistName = data.psychologist_name;
+                    console.log('👤 Psychologist name fetched and stored:', state.psychologistName);
+                }
+            } catch (error) {
+                console.error('❌ Error fetching psychologist name:', error);
+            }
+        }
+    }
+    
+    // Append the new message directly to DOM instead of reloading everything
+    appendMessageToDOM(message);
+}
 
-    // Set up auto-refresh every 2 seconds for live updates (faster for real-time feel)
-    state.messageRefreshInterval = setInterval(() => {
-        loadSessionMessages(sessionId, true);
-        checkPsychologistStatus(); // Also check for psychologist status updates
-    }, 2000);
+/**
+ * Append a single message to the DOM (prevents blinking)
+ */
+function appendMessageToDOM(msg) {
+    console.log('🔧 appendMessageToDOM called with:', msg);
+    console.log('🔍 Message ID:', msg.id, '| Role:', msg.role, '| Content length:', msg.content?.length);
+    
+    if (!elements.messagesContainer) {
+        console.warn('⚠️ messagesContainer not found');
+        return;
+    }
+    
+    // Check if message already exists in DOM (by checking message ID or content)
+    // This prevents duplicates when messages arrive via SSE during page load
+    const messageId = msg.id;
+    if (messageId) {
+        const existingMessage = elements.messagesContainer.querySelector(`[data-message-id="${messageId}"]`);
+        if (existingMessage) {
+            console.warn('⚠️ DUPLICATE PREVENTED! Message already in DOM:', messageId);
+            return;
+        }
+    }
+    
+    let role = msg.role || msg.sender;
+    let content = msg.content || msg.message;
+    
+    console.log('🔍 Message details:', { role, content, hasContent: !!content });
+    
+    if (!content) {
+        console.warn('⚠️ Message has no content:', msg);
+        return;
+    }
+    
+    let formattedContent;
+    
+    // Get psychologist name from state (updated when messages are loaded)
+    const psychologistName = state.psychologistName || 'Psychologist';
+    
+    console.log('👤 Using psychologist name from state:', psychologistName);
+    console.log('📋 Current state.psychologistName:', state.psychologistName);
+    
+    // Handle different message roles
+    if (role === 'psychologist') {
+        role = 'assistant';
+        formattedContent = `<strong>${psychologistName}:</strong> ${formatMessageHtml(content)}`;
+    } else if (role === 'system') {
+        formattedContent = formatMessageHtml(content);
+    } else {
+        formattedContent = formatMessageHtml(content);
+    }
+    
+    // Create and append new message element
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}`;
+    if (messageId) {
+        messageDiv.setAttribute('data-message-id', messageId);
+    }
+    messageDiv.innerHTML = `<div class="message-content message-body">${formattedContent}</div>`;
+    
+    console.log('✅ Appending message to DOM:', { role, messageId });
+    
+    // Check if we should auto-scroll
+    const wasAtBottom = elements.messagesContainer.scrollHeight - elements.messagesContainer.scrollTop <= elements.messagesContainer.clientHeight + 50;
+    
+    elements.messagesContainer.appendChild(messageDiv);
+    
+    console.log('✅ Message appended, total messages:', elements.messagesContainer.children.length);
+    
+    // Auto-scroll to bottom if was near bottom
+    if (wasAtBottom) {
+        elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
+    }
+}
+
+/**
+ * Cleanup function to close stream
+ */
+function cleanupMessageStream() {
+    if (state.messageStream) {
+        console.log('🔌 Closing message stream');
+        state.messageStream.close();
+        state.messageStream = null;
+    }
 }
 
 /**
@@ -1155,10 +1420,18 @@ async function performEndSession() {
             closeEndSessionModal();
             showToast(chatT('endSuccess'), 'success');
             state.lastPsychologistStatus = null;
-            loadChatSessions(true);
-            if (state.currentSessionId) {
-                loadSession(state.currentSessionId);
-            }
+            
+            // Update button immediately without reload
+            updateEndSessionButton(false);
+            
+            // Update the chat session in sidebar to remove "(with student)" label
+            updateChatSessionInSidebar(state.currentSessionId, false);
+            
+            // Don't reload - just update the UI state
+            // loadChatSessions(true);
+            // if (state.currentSessionId) {
+            //     loadSession(state.currentSessionId);
+            // }
         } else {
             setInlineError('endSessionFormError', data.error || chatT('endError'));
         }
