@@ -1,6 +1,91 @@
 /**
- * Psychology student recommendations — browse anytime + crisis trigger
+ * Psychology student recommendations — browse anytime + crisis trigger (EN / MK)
  */
+
+const RECOMMENDATIONS_I18N = {
+    en: {
+        browseTitle: 'Psychology students available',
+        browseSubtitle: 'Connect with a psychology student for supervised practice support—not licensed clinical care.',
+        browseFooter: 'Students are trainees under supervision.',
+        crisisTitle: 'Support from a psychology student',
+        crisisSubtitle: (label) =>
+            `We noticed signs of ${label}. You can talk with a psychology student in training.`,
+        crisisFooter: 'Supervised trainees—not licensed clinicians. Not for emergencies.',
+        noStudentsTitle: 'No students available right now',
+        noStudentsBody:
+            'No psychology students are online at the moment. Please try again later or continue chatting with AI.',
+        errorDefault: 'Failed to load students',
+        errorLogin: 'Please log in again to send a request',
+        errorRequest: 'Failed to send request',
+        errorNoSession: 'Please start a chat session first before requesting a student.',
+        oops: 'Oops!',
+        areas: 'Areas of interest:',
+        languages: 'Languages:',
+        response: 'Response:',
+        min: 'min',
+        online: 'Online',
+        offline: 'Offline',
+        reviews: 'reviews',
+        sendRequest: 'Send Request',
+        defaultBio: 'Psychology student in training',
+        requestSent: (name) => `Request sent to ${name}!`,
+        emotions: {
+            depression: 'depression',
+            anxiety: 'anxiety',
+            panic: 'panic',
+            loneliness: 'loneliness',
+            burnout: 'burnout',
+            overwhelm: 'overwhelm',
+            grief: 'grief',
+            trauma: 'trauma',
+            substance_abuse: 'substance use',
+            suicidal_ideation: 'suicidal thoughts',
+            default: 'emotional distress',
+        },
+    },
+    mk: {
+        browseTitle: 'Достапни студенти по психологија',
+        browseSubtitle:
+            'Поврзи се со студент по психологија за поддршка под супервизија—не лиценцирана клиничка нега.',
+        browseFooter: 'Студентите се во обука под супервизија.',
+        crisisTitle: 'Поддршка од студент по психологија',
+        crisisSubtitle: (label) =>
+            `Забележавме знаци на ${label}. Можеш да разговараш со студент по психологија во обука.`,
+        crisisFooter:
+            'Студенти под супервизија—не лиценцирани клиничари. Не за итни случаи.',
+        noStudentsTitle: 'Моментално нема достапни студенти',
+        noStudentsBody:
+            'Нема онлајн студенти по психологија во моментов. Обиди се повторно подоцна или продолжи со разговор со AI.',
+        errorDefault: 'Неуспешно вчитување на студенти',
+        errorLogin: 'Најави се повторно за да испратиш барање',
+        errorRequest: 'Неуспешно испраќање на барање',
+        errorNoSession: 'Прво започни разговор пред да испратиш барање до студент.',
+        oops: 'Упс!',
+        areas: 'Области на интерес:',
+        languages: 'Јазици:',
+        response: 'Одговор:',
+        min: 'мин',
+        online: 'Онлајн',
+        offline: 'Офлајн',
+        reviews: 'рецензии',
+        sendRequest: 'Испрати барање',
+        defaultBio: 'Студент по психологија во обука',
+        requestSent: (name) => `Барањето е испратено до ${name}!`,
+        emotions: {
+            depression: 'депресија',
+            anxiety: 'анксиозност',
+            panic: 'паника',
+            loneliness: 'осаменост',
+            burnout: 'исцрпеност',
+            overwhelm: 'преоптоварување',
+            grief: 'тага',
+            trauma: 'траума',
+            substance_abuse: 'злоупотреба на супстанции',
+            suicidal_ideation: 'суицидални мисли',
+            default: 'емоционална дистрес',
+        },
+    },
+};
 
 class PsychologistRecommendations {
     constructor() {
@@ -10,6 +95,23 @@ class PsychologistRecommendations {
         this.init();
     }
 
+    getLang() {
+        if (typeof state !== 'undefined' && state.language) {
+            return state.language;
+        }
+        return localStorage.getItem('language') || 'en';
+    }
+
+    t(key, ...args) {
+        const lang = this.getLang() === 'mk' ? 'mk' : 'en';
+        const bundle = RECOMMENDATIONS_I18N[lang];
+        const value = bundle[key];
+        if (typeof value === 'function') {
+            return value(...args);
+        }
+        return value ?? RECOMMENDATIONS_I18N.en[key];
+    }
+
     init() {
         this.container = document.createElement('div');
         this.container.id = 'psychologist-recommendations-modal';
@@ -17,28 +119,22 @@ class PsychologistRecommendations {
         document.body.appendChild(this.container);
     }
 
-    /**
-     * Fetch students and open modal (no urgency check)
-     */
     async showBrowseStudents() {
         await this._fetchAndShow(null, {
-            title: 'Psychology students available',
-            subtitle: 'Connect with a psychology student for supervised practice support—not licensed clinical care.',
-            footer: 'Students are trainees under supervision.',
+            title: this.t('browseTitle'),
+            subtitle: this.t('browseSubtitle'),
+            footer: this.t('browseFooter'),
         });
     }
 
-    /**
-     * Show recommendations when high-urgency emotion is detected
-     */
-    async showRecommendations(emotion, urgency) {
-        if (urgency !== 'high') return;
+    async showRecommendations(emotion, urgency, force = false) {
+        if (!force && urgency !== 'high') return;
 
-        const title = this.getEmotionTitle(emotion);
+        const label = this.getEmotionTitle(emotion);
         await this._fetchAndShow(emotion, {
-            title: 'Support from a psychology student',
-            subtitle: `We noticed signs of ${title.toLowerCase()}. You can talk with a psychology student in training.`,
-            footer: 'Supervised trainees—not licensed clinicians. Not for emergencies.',
+            title: this.t('crisisTitle'),
+            subtitle: this.t('crisisSubtitle', label),
+            footer: this.t('crisisFooter'),
         });
     }
 
@@ -47,7 +143,7 @@ class PsychologistRecommendations {
             const response = await apiFetch('/api/psychologist/recommended');
             const psychologists = await response.json();
 
-            if (!psychologists || psychologists.length === 0) {
+            if (!Array.isArray(psychologists) || psychologists.length === 0) {
                 this.showNoAvailable();
                 return;
             }
@@ -70,7 +166,7 @@ class PsychologistRecommendations {
                 </div>
 
                 <div class="psychologist-cards-container">
-                    ${psychologists.slice(0, 3).map(psy => this.renderCard(psy)).join('')}
+                    ${psychologists.slice(0, 3).map((psy) => this.renderCard(psy)).join('')}
                 </div>
 
                 <div class="psychologist-modal-footer">
@@ -107,17 +203,17 @@ class PsychologistRecommendations {
                     <div class="rating">
                         ${this.renderStars(psychologist.average_rating)}
                         <span class="rating-number">${psychologist.average_rating.toFixed(1)}</span>
-                        <span class="review-count">(${psychologist.review_count} reviews)</span>
+                        <span class="review-count">(${psychologist.review_count} ${this.t('reviews')})</span>
                     </div>
-                    <p class="bio">${psychologist.bio || 'Psychology student in training'}</p>
-                    <p class="specializations"><strong>Areas of interest:</strong> ${specializations}</p>
-                    <p class="languages"><strong>Languages:</strong> ${languages}</p>
+                    <p class="bio">${psychologist.bio || this.t('defaultBio')}</p>
+                    <p class="specializations"><strong>${this.t('areas')}</strong> ${specializations}</p>
+                    <p class="languages"><strong>${this.t('languages')}</strong> ${languages}</p>
                     <div class="psychologist-meta">
                         <span class="response-time">
-                            Response: ${psychologist.average_response_time_minutes}min
+                            ${this.t('response')} ${psychologist.average_response_time_minutes}${this.t('min')}
                         </span>
                         <span class="status ${psychologist.is_online ? 'online' : 'offline'}">
-                            ${psychologist.is_online ? 'Online' : 'Offline'}
+                            ${psychologist.is_online ? this.t('online') : this.t('offline')}
                         </span>
                     </div>
                 </div>
@@ -125,7 +221,7 @@ class PsychologistRecommendations {
                 <div class="psychologist-action">
                     <button class="btn-connect" 
                             onclick="psychologistRecommendations.sendRequest('${psychologist.id}', '${safeName}', 'high')">
-                        Send Request
+                        ${this.t('sendRequest')}
                     </button>
                 </div>
             </div>
@@ -145,27 +241,16 @@ class PsychologistRecommendations {
     }
 
     getEmotionTitle(emotion) {
-        const emotionMap = {
-            'depression': 'Depression',
-            'anxiety': 'Anxiety',
-            'panic': 'Panic',
-            'loneliness': 'Loneliness',
-            'burnout': 'Burnout',
-            'overwhelm': 'Overwhelm',
-            'grief': 'Grief',
-            'trauma': 'Trauma',
-            'substance_abuse': 'Substance Abuse',
-            'suicidal_ideation': 'Suicidal Thoughts'
-        };
-        return emotionMap[emotion] || 'Emotional Distress';
+        const lang = this.getLang() === 'mk' ? 'mk' : 'en';
+        const emotions = RECOMMENDATIONS_I18N[lang].emotions;
+        return emotions[emotion] || emotions.default;
     }
 
     async sendRequest(psychologistId, psychologistName, urgencyLevel) {
         try {
             const messageInput = document.querySelector('#messageInput');
-            const userMessage = messageInput?.value || 'I need support';
+            const userMessage = messageInput?.value || (this.getLang() === 'mk' ? 'ми треба поддршка' : 'I need support');
 
-            const accessToken = localStorage.getItem('access_token');
             const userId = localStorage.getItem('user_id');
 
             let currentChatSessionId = localStorage.getItem('current_session_id');
@@ -176,7 +261,7 @@ class PsychologistRecommendations {
 
             if (!currentChatSessionId) {
                 console.error('❌ No chat session ID found!');
-                this.showError('Please start a chat session first before requesting a student.');
+                this.showError(this.t('errorNoSession'));
                 return;
             }
 
@@ -184,7 +269,7 @@ class PsychologistRecommendations {
                 psychologist_id: psychologistId,
                 message: userMessage,
                 urgency_level: urgencyLevel,
-                chat_session_id: currentChatSessionId
+                chat_session_id: currentChatSessionId,
             };
 
             if (userId) {
@@ -193,28 +278,26 @@ class PsychologistRecommendations {
 
             const response = await apiFetch('/api/psychologist/request', {
                 method: 'POST',
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(requestBody),
             });
 
             if (response.ok) {
-                this.showSuccessMessage(`Request sent to ${psychologistName}!`);
+                this.showSuccessMessage(this.t('requestSent', psychologistName));
                 this.close();
                 if (messageInput) messageInput.value = '';
-                
-                // Trigger immediate message refresh to catch psychologist responses faster
+
                 if (typeof loadSessionMessages === 'function' && currentChatSessionId) {
-                    console.log('🔄 Triggering immediate message refresh after request...');
                     setTimeout(() => loadSessionMessages(currentChatSessionId, true), 500);
                     setTimeout(() => loadSessionMessages(currentChatSessionId, true), 1500);
                 }
             } else if (response.status === 401) {
-                this.showError('Please log in again to send a request');
+                this.showError(this.t('errorLogin'));
             } else {
-                this.showError('Failed to send request');
+                this.showError(this.t('errorRequest'));
             }
         } catch (error) {
             console.error('Error sending request:', error);
-            this.showError('Error sending request');
+            this.showError(this.t('errorRequest'));
         }
     }
 
@@ -229,12 +312,13 @@ class PsychologistRecommendations {
         }, 3000);
     }
 
-    showError(message = 'Failed to load students') {
+    showError(message) {
+        const text = message || this.t('errorDefault');
         const html = `
             <div class="psychologist-modal-content">
                 <div class="psychologist-modal-header">
-                    <h2>Oops!</h2>
-                    <p>${message}</p>
+                    <h2>${this.t('oops')}</h2>
+                    <p>${text}</p>
                     <button class="modal-close-btn" onclick="psychologistRecommendations.close()">×</button>
                 </div>
             </div>
@@ -247,18 +331,14 @@ class PsychologistRecommendations {
         const html = `
             <div class="psychologist-modal-content">
                 <div class="psychologist-modal-header">
-                    <h2>No students available right now</h2>
-                    <p>No psychology students are online at the moment. Please try again later or continue chatting with AI.</p>
+                    <h2>${this.t('noStudentsTitle')}</h2>
+                    <p>${this.t('noStudentsBody')}</p>
                     <button class="modal-close-btn" onclick="psychologistRecommendations.close()">×</button>
                 </div>
             </div>
         `;
         this.container.innerHTML = html;
         this.open();
-    }
-
-    getToken() {
-        return localStorage.getItem('access_token') || '';
     }
 
     open() {

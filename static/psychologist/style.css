@@ -86,6 +86,16 @@ body {
     gap: 20px;
 }
 
+.user-display-name {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 600;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ============================================================================
    ONLINE STATUS TOGGLE
    ============================================================================ */
@@ -809,6 +819,16 @@ body {
 /* ============================================================================
    MODALS
    ============================================================================ */
+
+.form-inline-error-dashboard {
+    color: #dc2626;
+    font-size: 13px;
+    margin: 0 0 12px;
+}
+
+.form-inline-error-dashboard[hidden] {
+    display: none;
+}
 
 .modal {
     position: fixed;
